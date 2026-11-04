@@ -46,7 +46,9 @@ body { background-color: #121212; color: #EFEFC9; font-family: system-ui, -apple
 <input type="password" id="pin-input" class="w-full text-center text-xl py-3 bg-black/60 border border-brand-wine rounded-xl text-amber-200 focus:outline-none focus:border-amber-200" placeholder="Escribe tu clave..." onkeyup="if(event.key==='Enter') checkPin()">
 <p id="pin-error" class="text-xs text-red-400 mt-2 hidden">¡Código incorrecto! Inténtalo de nuevo 🐾</p>
 </div>
-<button onclick="checkPin()" class="w-full bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-3 rounded-xl font-bold text-sm transition">
+<button type="button" id="btn-unlock" onclick="checkPin()" class="w-full bg-[#5A5E27] active:bg-[#5A5E27]/60 hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-3 rounded-xl font-bold text-sm transition cursor-pointer select-none">
+    Desbloquear Archivo
+</button>
 Desbloquear Archivo
 </button>
 </div>
@@ -103,7 +105,7 @@ Desbloquear Archivo
 </a>
 </div>
 <script>        
-            // SEGURIDAD PIN
+                    // CONTRASEÑA SECRETA DE CHAT NOIR
         const SECRET_PIN = "Ch4t N01r";
 
         function checkPin() {
@@ -112,7 +114,9 @@ Desbloquear Archivo
             const screen = document.getElementById('pin-screen');
             const app = document.getElementById('app-wrapper') || document.getElementById('app-content');
 
-            if (input && input.value.trim() === SECRET_PIN) {
+            const val = input ? input.value.trim() : '';
+
+            if (val === SECRET_PIN) {
                 if (screen) screen.classList.add('hidden');
                 if (app) {
                     app.classList.remove('hidden');
@@ -133,18 +137,6 @@ Desbloquear Archivo
             sessionStorage.removeItem('archive_unlocked');
             location.reload();
         }
-
-        window.addEventListener('DOMContentLoaded', () => {
-            if (sessionStorage.getItem('archive_unlocked') === 'true') {
-                const screen = document.getElementById('pin-screen');
-                const app = document.getElementById('app-wrapper') || document.getElementById('app-content');
-                if (screen) screen.classList.add('hidden');
-                if (app) {
-                    app.classList.remove('hidden');
-                    app.classList.add('flex');
-                }
-            }
-        });
     
 // BASE DE DATOS LOCAL
 let artistsData = JSON.parse(localStorage.getItem('miraculous_artists_db')) || [
