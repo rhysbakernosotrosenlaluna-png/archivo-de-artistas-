@@ -102,26 +102,51 @@ Desbloquear Archivo
 <i class="fa-solid fa-download mr-1"></i> Abrir imagen original
 </a>
 </div>
-<script>
-// CONTRASEÑA SECRETA DE CHAT NOIR
-const SECRET_PIN = "Ch4t N01r";
-function checkPin() {
-const inputVal = document.getElementById('pin-input').value.trim();
-const errorEl = document.getElementById('pin-error');
-if (inputVal === SECRET_PIN) {
-document.getElementById('pin-screen').classList.add('hidden');
-document.getElementById('app-wrapper').classList.remove('hidden');
-document.getElementById('app-wrapper').classList.add('flex');
-sessionStorage.setItem('archive_unlocked', 'true');
-render();
-} else {
-errorEl.classList.remove('hidden');
-}
-}
-function lockApp() {
-sessionStorage.removeItem('archive_unlocked');
-location.reload();
-}
+<script>        
+    // Contraseña
+        const SECRET_PIN = "Ch4t N01r";
+
+        function checkPin() {
+            const input = document.getElementById('pin-input');
+            const error = document.getElementById('pin-error');
+            const screen = document.getElementById('pin-screen');
+            const app = document.getElementById('app-wrapper') || document.getElementById('app-content');
+
+            if (input && input.value.trim() === SECRET_PIN) {
+                if (screen) screen.classList.add('hidden');
+                if (app) {
+                    app.classList.remove('hidden');
+                    app.classList.add('flex');
+                }
+                if (error) error.classList.add('hidden');
+                sessionStorage.setItem('archive_unlocked', 'true');
+            } else {
+                if (error) error.classList.remove('hidden');
+                if (input) {
+                    input.value = '';
+                    input.focus();
+                }
+            }
+        }
+
+        function lockApp() {
+            sessionStorage.removeItem('archive_unlocked');
+            location.reload();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            if (sessionStorage.getItem('archive_unlocked') === 'true') {
+                const screen = document.getElementById('pin-screen');
+                const app = document.getElementById('app-wrapper') || document.getElementById('app-content');
+                if (screen) screen.classList.add('hidden');
+                if (app) {
+                    app.classList.remove('hidden');
+                    app.classList.add('flex');
+                }
+            }
+        });
+
+
 // BASE DE DATOS LOCAL
 let artistsData = JSON.parse(localStorage.getItem('miraculous_artists_db')) || [
 {
