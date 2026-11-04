@@ -97,7 +97,7 @@
                         title: 'El Secreto de París',
                         cover: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80',
                         description: 'Un fancomic alternativo sobre Ladybug y Chat Noir.',
-                        displayMode: 'seasons_chapters', // 'seasons_chapters', 'chapters_only', 'continuous'
+                        displayMode: 'seasons_chapters',
                         activeSeason: 'Temporada 1',
                         activeChapter: 'Capítulo 1',
                         seasonsData: [
@@ -129,11 +129,11 @@
         ];
 
         let state = {
-            view: 'home', // 'home', 'artist', 'comic'
+            view: 'home',
             selectedArtistId: null,
             selectedComicId: null,
-            comicTab: 'pages', // 'pages', 'lore', 'fanfics', 'sketches', 'videos'
-            comicViewMode: 'gallery', // 'reader', 'gallery'
+            comicTab: 'pages',
+            comicViewMode: 'gallery',
             comicCurrentPage: 1
         };
 
@@ -150,7 +150,6 @@
             render();
         }
 
-        // RENDERIZADO PRINCIPAL
         function render() {
             const container = document.getElementById('app-content');
             if (!container) return;
@@ -186,7 +185,7 @@
                                         <div class="overflow-hidden">
                                             <h3 class="font-bold text-base text-amber-100 truncate">${artist.name}</h3>
                                             <p class="text-xs text-[#5A5E27] font-semibold">${artist.username}</p>
-    </div>
+                                        </div>
                                     </div>
                                     <p class="text-xs text-[#EFEFC9]/70 mt-3 line-clamp-2">${artist.bio || 'Sin biografía.'}</p>
                                     <div class="mt-4 pt-3 border-t border-brand-wine/30 flex justify-between items-center text-xs text-amber-200/80">
@@ -208,6 +207,9 @@
         function renderArtist(container) {
             const artist = artistsData.find(a => a.id === state.selectedArtistId);
             if (!artist) { navigateTo('home'); return; }
+
+            // Fanarts ordenados estilo Instagram (los más recientes primero)
+            const sortedFanarts = [...(artist.fanarts || [])].reverse();
 
             container.innerHTML = `
                 <div class="space-y-6">
@@ -232,11 +234,11 @@
                             <button onclick="promptAddComic('${artist.id}')" class="bg-[#5A5E27] text-[#EFEFC9] px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#5A5E27]/80 transition">
                                 + Nuevo Cómic
                             </button>
-                            <button onclick="promptAddArtistFanart('${artist.id}')" class="bg-brand-wine text-amber-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-brand-border transition">
-                                + Agregar Fanart
-                            </button>
                             <button onclick="promptAddArtistVideo('${artist.id}')" class="bg-black/40 text-amber-100 border border-brand-wine px-4 py-2 rounded-xl text-xs font-bold hover:bg-black/60 transition">
                                 + Agregar Video
+                            </button>
+                            <button onclick="promptAddArtistFanart('${artist.id}')" class="bg-brand-wine text-amber-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-brand-border transition">
+                                + Agregar Fanart
                             </button>
                         </div>
                     </div>
@@ -267,29 +269,7 @@
                         `}
                     </div>
 
-                    <!-- SECCIÓN: FANARTS Y DIBUJOS SUELTOS DEL ARTISTA -->
-                    <div class="space-y-3 pt-4 border-t border-brand-wine/30">
-                        <div class="flex justify-between items-center">
-                            <h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-image mr-2"></i>Fanarts y Dibujos Sueltos</h3>
-                            <button onclick="promptAddArtistFanart('${artist.id}')" class="text-xs bg-brand-wine text-amber-200 px-3 py-1.5 rounded-lg border border-brand-border">+ Añadir Fanart</button>
-                        </div>
-                        ${(!artist.fanarts || artist.fanarts.length === 0) ? `
-                            <p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-4 rounded-xl border border-brand-wine/30 text-center">No hay fanarts individuales agregados todavía.</p>
-                        ` : `
-                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                ${artist.fanarts.map(fa => `
-                                    <div class="relative group aspect-square bg-brand-card rounded-xl overflow-hidden border border-brand-wine/40">
-                                        <img src="${fa.url}" onclick="openModal('${fa.url}', '${fa.title || 'Fanart'}')" class="w-full h-full object-cover cursor-pointer">
-                                        <div class="absolute bottom-0 inset-x-0 bg-black/70 p-2 text-[10px] text-amber-100 truncate opacity-0 group-hover:opacity-100 transition">
-                                            ${fa.title || 'Ver fanart'}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `}
-                    </div>
-
-                    <!-- SECCIÓN: VIDEOS Y ANIMATICS DEL ARTISTA -->
+                    <!-- SECCIÓN DE VIDEOS Y ANIMATICS (AHORA ARRIBA DE FANARTS) -->
                     <div class="space-y-3 pt-4 border-t border-brand-wine/30">
                         <div class="flex justify-between items-center">
                             <h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-video mr-2"></i>Videos y Animatics General</h3>
@@ -299,9 +279,14 @@
                             <p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-4 rounded-xl border border-brand-wine/30 text-center">No hay videos ni animatics agregados a este perfil.</p>
                         ` : `
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                ${artist.animations.map(vid => `
-                                    <div class="bg-brand-card border border-brand-wine/40 p-3 rounded-xl space-y-2">
-                                        <h4 class="font-bold text-xs text-amber-100">${vid.title}</h4>
+                                ${artist.animations.map((vid, vidIdx) => `
+                                    <div class="bg-brand-card border border-brand-wine/40 p-3 rounded-xl space-y-2 relative">
+                                        <div class="flex justify-between items-center">
+                                            <h4 class="font-bold text-xs text-amber-100 truncate pr-2">${vid.title}</h4>
+                                            <button onclick="deleteArtistVideo('${artist.id}', ${vidIdx})" class="text-red-400 hover:text-red-300 text-xs p-1">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
                                         <div class="aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
                                             ${getEmbedPlayerHtml(vid.url)}
                                         </div>
@@ -310,17 +295,45 @@
                             </div>
                         `}
                     </div>
+
+                    <!-- SECCIÓN DE FANARTS Y DIBUJOS SUELTOS (NUEVO EN EL TOP - ESTILO INSTAGRAM) -->
+                    <div class="space-y-3 pt-4 border-t border-brand-wine/30">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-image mr-2"></i>Fanarts y Dibujos Sueltos</h3>
+                            <button onclick="promptAddArtistFanart('${artist.id}')" class="text-xs bg-brand-wine text-amber-200 px-3 py-1.5 rounded-lg border border-brand-border">+ Añadir Fanart</button>
+                        </div>
+                        ${(sortedFanarts.length === 0) ? `
+                            <p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-4 rounded-xl border border-brand-wine/30 text-center">No hay fanarts individuales agregados todavía.</p>
+                        ` : `
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                ${sortedFanarts.map((fa, index) => {
+                                    // Índice original en el array sin revertir
+                                    const realIndex = artist.fanarts.length - 1 - index;
+                                    return `
+                                        <div class="relative group aspect-square bg-brand-card rounded-xl overflow-hidden border border-brand-wine/40">
+                                            <img src="${fa.url}" onclick="openModal('${fa.url}', '${fa.title || 'Fanart'}')" class="w-full h-full object-cover cursor-pointer">
+                                            <div class="absolute bottom-0 inset-x-0 bg-black/80 p-2 text-[10px] text-amber-100 flex justify-between items-center opacity-0 group-hover:opacity-100 transition">
+                                                <span class="truncate pr-1">${fa.title || 'Fanart'}</span>
+                                                <button onclick="deleteArtistFanart('${artist.id}', ${realIndex})" class="text-red-400 hover:text-red-200 p-1">
+                                                    <i class="fa-solid fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
+                    </div>
                 </div>
             `;
         }
 
-        // 3. VISTA DETALLADA DEL CÓMIC (FORMATO COMPLETO ORIGINAL REESTABLECIDO)
+        // 3. VISTA DETALLADA DEL CÓMIC
         function renderComic(container) {
             const artist = artistsData.find(a => a.id === state.selectedArtistId);
             const comic = artist?.comics.find(c => c.id === state.selectedComicId);
             if (!artist || !comic) { navigateTo('home'); return; }
 
-            // Obtener lista de páginas según el modo
             let currentPagesList = [];
             let season = null;
             let chapter = null;
@@ -358,7 +371,7 @@
                         </div>
                     </div>
 
-                    <!-- NAVEGACIÓN DE PESTAÑAS ORIGINAL -->
+                    <!-- NAVEGACIÓN DE PESTAÑAS -->
                     <div class="flex overflow-x-auto gap-2 border-b border-brand-wine/40 pb-2 text-xs font-bold custom-scroll">
                         <button onclick="setComicTab('pages')" class="px-4 py-2 rounded-xl transition ${state.comicTab === 'pages' ? 'bg-[#5A5E27] text-white' : 'bg-brand-card text-[#EFEFC9]/70 hover:text-white'}">
                             <i class="fa-solid fa-book-open mr-1"></i> Páginas
@@ -961,6 +974,15 @@
             }
         }
 
+        function deleteArtistFanart(artistId, index) {
+            const artist = artistsData.find(a => a.id === artistId);
+            if (artist && artist.fanarts) {
+                artist.fanarts.splice(index, 1);
+                saveData();
+                render();
+            }
+        }
+
         function promptAddArtistVideo(artistId) {
             openFormModal('Añadir Video del Artista', `
                 <div class="space-y-3">
@@ -987,6 +1009,15 @@
                 artist.animations.push({ title, url });
                 saveData();
                 closeFormModal();
+                render();
+            }
+        }
+
+        function deleteArtistVideo(artistId, index) {
+            const artist = artistsData.find(a => a.id === artistId);
+            if (artist && artist.animations) {
+                artist.animations.splice(index, 1);
+                saveData();
                 render();
             }
         }
