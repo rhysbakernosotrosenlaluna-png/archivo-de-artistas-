@@ -18,7 +18,6 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuración de Firebase en la nube
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'archivo-artistas-app';
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
             ? JSON.parse(__firebase_config) 
@@ -42,7 +41,6 @@
         let currentUser = null;
         let isDataLoadedFromCloud = false;
 
-        // Iniciar sesión anónima o con token para evitar bloqueos de iFrame
         async function ensureAuth() {
             if (auth.currentUser) return auth.currentUser;
             try {
@@ -61,11 +59,8 @@
 
         window.initFirebaseSync = async function() {
             await ensureAuth();
-            
-            // Ruta estricta de Firestore
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'store', 'artists_archive');
             
-            // 1. PRIMERO Cargar de la nube sin sobreescribir jamás
             try {
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
@@ -80,7 +75,6 @@
                 console.warn("Error leyendo Firestore inicial:", e);
             }
 
-            // 2. ESCUCHAR CAMBIOS EN TIEMPO REAL
             onSnapshot(docRef, (snapshot) => {
                 if (snapshot.exists()) {
                     const cloudData = snapshot.data();
@@ -102,14 +96,12 @@
             try {
                 await ensureAuth();
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'store', 'artists_archive');
-                // Forzar guardado inmediato en la nube
                 await setDoc(docRef, { artists: window.artistsData });
             } catch (err) {
                 console.error("Error guardando datos en la nube:", err);
             }
         };
 
-        // Iniciar sincronización automáticamente
         window.addEventListener('DOMContentLoaded', () => {
             window.initFirebaseSync();
         });
@@ -157,12 +149,9 @@
             </div>
         </div>
 
-        <!-- Mapeo de migas de pan (Breadcrumbs) dinámicas -->
         <nav id="breadcrumbs" class="hidden md:flex items-center space-x-2 text-sm text-[#EFEFC9]/70">
-            <!-- Se actualiza por JS -->
         </nav>
 
-        <!-- Botón de retorno al inicio -->
         <div class="flex items-center gap-2">
             <button onclick="navigateTo('directory')" class="text-xs font-medium bg-brand-wine hover:bg-[#640017]/80 text-[#EFEFC9] px-3.5 py-2 rounded-xl border border-brand-border transition flex items-center gap-2">
                 <i class="fa-solid fa-house"></i>
@@ -173,7 +162,6 @@
 
     <!-- Contenido Principal Dinámico -->
     <main id="app-content" class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        <!-- Renderizado dinámico vía JavaScript -->
     </main>
 
     <!-- Lightbox Modal para Ampliar Imágenes -->
@@ -202,15 +190,11 @@
             </button>
             <h3 id="form-modal-title" class="text-lg font-bold text-[#EFEFC9] mb-4">Añadir Elemento</h3>
             <div id="form-modal-body" class="space-y-4 text-xs">
-                <!-- Contenido dinámico inyectado JS -->
             </div>
         </div>
     </div>
 
     <script>
-        /* ==========================================================================
-           ESTADO INICIAL DE DATOS & PERSISTENCIA LOCAL Y NUBE
-           ========================================================================== */
         const STORAGE_KEY = 'archivo_artistas_data';
 
         let defaultArtistsData = [
@@ -237,9 +221,7 @@
                     { id: 'fa-1', title: 'Guerrera Neón', url: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=1200&q=80' },
                     { id: 'fa-2', title: 'Cyberpunk City', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80' }
                 ],
-                animations: [
-                    { id: 'an-1', title: 'Paseo Nocturno (Loop)', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=600&q=80' }
-                ],
+                animations: [],
                 otherGalleries: []
             }
         ];
@@ -257,48 +239,52 @@
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(window.artistsData));
             } catch(e) {
-                console.warn('Almacenamiento local restringido por iframe:', e);
+                console.warn('Almacenamiento local restringido:', e);
             }
             if (window.saveDataToCloud) {
                 window.saveDataToCloud();
             }
         }
 
-        /* Copia de Seguridad Local JSON */
-        function exportBackupData() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.artistsData, null, 2));
-            const downloadAnchor = document.createElement('a');
-            downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", `copia_artistas_${Date.now()}.json`);
-            document.body.appendChild(downloadAnchor);
-            downloadAnchor.click();
-            downloadAnchor.remove();
-        }
+        /* Reproductor Multi-plataforma (YouTube, TikTok, Instagram, Vimeo, Links directos) */
+        function renderVideoEmbed(url) {
+            if (!url) return '';
+            
+            // Detectar YouTube (Videos normales & Shorts)
+            let youtubeMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|shorts\/|watch\?.+&v=))([\w-]{11})/);
+            if (youtubeMatch && youtubeMatch[1]) {
+                return `<iframe class="w-full h-full rounded-xl" src="https://www.youtube.com/embed/${youtubeMatch[1]}" title="YouTube video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+            }
 
-        function importBackupData(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const importedData = JSON.parse(e.target.result);
-                    if (Array.isArray(importedData)) {
-                        window.artistsData = importedData;
-                        saveData();
-                        render();
-                    }
-                } catch(err) {
-                    console.error("Error al importar la copia de seguridad:", err);
-                }
-            };
-            reader.readAsText(file);
+            // Detectar TikTok
+            let tiktokMatch = url.match(/tiktok\.com\/.*\/video\/(\d+)/);
+            if (tiktokMatch && tiktokMatch[1]) {
+                return `<iframe class="w-full h-full rounded-xl" src="https://www.tiktok.com/embed/v2/${tiktokMatch[1]}" frameborder="0" allowfullscreen></iframe>`;
+            }
+
+            // Detectar Instagram (Posts & Reels)
+            let instaMatch = url.match(/instagram\.com\/(?:p|reel|reels)\/([^/?#&]+)/);
+            if (instaMatch && instaMatch[1]) {
+                return `<iframe class="w-full h-full rounded-xl bg-white" src="https://www.instagram.com/p/${instaMatch[1]}/embed" frameborder="0" scrolling="no" allowtransparency="true"></iframe>`;
+            }
+
+            // Detectar Vimeo
+            let vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+            if (vimeoMatch && vimeoMatch[1]) {
+                return `<iframe class="w-full h-full rounded-xl" src="https://player.vimeo.com/video/${vimeoMatch[1]}" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+            }
+
+            // Si es un video directo (MP4, WEBM) o cualquier otro enlace
+            return `
+                <video controls class="w-full h-full object-cover rounded-xl">
+                    <source src="${url}">
+                    Tu navegador no soporta reproducir este enlace directamente. <a href="${url}" target="_blank" class="text-amber-200 underline">Ver video en enlace externo</a>.
+                </video>
+            `;
         }
 
         window.artistsData = loadStorageData();
 
-        /* ==========================================================================
-           ESTADO Y NAVEGACIÓN
-           ========================================================================== */
         let state = {
             view: 'directory',
             artistId: null,
@@ -317,9 +303,6 @@
             render();
         }
 
-        /* ==========================================================================
-           RENDERIZADO
-           ========================================================================== */
         function render() {
             const app = document.getElementById('app-content');
             const breadcrumbs = document.getElementById('breadcrumbs');
@@ -353,7 +336,6 @@
             }
         }
 
-        /* 1. VISTA DIRECTORIO */
         function renderDirectory() {
             return `
                 <div class="space-y-6">
@@ -394,7 +376,6 @@
             `;
         }
 
-        /* 2. VISTA FICHA DEL ARTISTA */
         function renderArtistProfile(artist) {
             return `
                 <div class="space-y-10">
@@ -432,7 +413,7 @@
                             <i class="fa-solid fa-image"></i> + Nuevo Fanart / Ilustración
                         </button>
                         <button onclick="promptAddAnimation('${artist.id}')" class="bg-[#5A5E27]/80 hover:bg-[#5A5E27] text-[#EFEFC9] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
-                            <i class="fa-solid fa-film"></i> + Nueva Animación
+                            <i class="fa-solid fa-film"></i> + Video / Reel / TikTok
                         </button>
                     </div>
 
@@ -498,7 +479,7 @@
                         <section class="space-y-4">
                             <div class="flex items-center gap-3 border-b border-brand-wine/40 pb-3">
                                 <i class="fa-solid fa-film text-amber-200 text-xl"></i>
-                                <h3 class="text-xl font-bold text-[#EFEFC9]">Animatics & Animaciones</h3>
+                                <h3 class="text-xl font-bold text-[#EFEFC9]">Videos, Reels & Animaciones</h3>
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 ${artist.animations.map(anim => `
@@ -506,10 +487,8 @@
                                         <button onclick="deleteAnimation('${artist.id}', '${anim.id}')" class="absolute top-5 right-5 z-10 bg-black/80 hover:bg-red-600 text-[#EFEFC9] p-1.5 rounded-lg text-xs transition">
                                             <i class="fa-solid fa-trash"></i>
                                         </button>
-                                        <div class="aspect-video rounded-xl overflow-hidden bg-black mb-3">
-                                            <video controls poster="${anim.thumbnail || ''}" class="w-full h-full object-cover">
-                                                <source src="${anim.videoUrl}" type="video/mp4">
-                                            </video>
+                                        <div class="aspect-video rounded-xl overflow-hidden bg-black mb-3 flex items-center justify-center">
+                                            ${renderVideoEmbed(anim.videoUrl)}
                                         </div>
                                         <h4 class="font-semibold text-[#EFEFC9] text-sm px-1">${anim.title}</h4>
                                     </div>
@@ -521,7 +500,6 @@
             `;
         }
 
-        /* 3. VISTA LECTOR DE CÓMIC */
         function renderComicPage(artist, comic) {
             const totalPages = comic.pages.length;
             const currentPageObj = comic.pages.find(p => p.pageNum === state.comicCurrentPage) || comic.pages[0];
@@ -617,9 +595,6 @@
             }
         }
 
-        /* ==========================================================================
-           GESTIÓN Y MANIPULACIÓN DE DATOS (FORMULARIOS Y ARCHIVOS)
-           ========================================================================== */
         function handleFileSelect(event, callback) {
             const file = event.target.files[0];
             if (file) {
@@ -639,7 +614,6 @@
             document.getElementById('form-modal').classList.add('hidden');
         }
 
-        /* ACCIONES DE FORMULARIOS */
         function promptAddArtist() {
             let selectedImage = 'https://placehold.co/400x400/2F1B1A/EFEFC9?text=Artista';
             
@@ -653,9 +627,9 @@
                     <input type="text" id="new-artist-user" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" placeholder="Ej. @carlos_draws">
                 </div>
                 <div>
-                    <label class="block text-[#EFEFC9]/70 mb-1">URL de la Imagen (Recomendado: Blogger / Enlace web)</label>
+                    <label class="block text-[#EFEFC9]/70 mb-1">URL de la Imagen (Blogger / Enlace web)</label>
                     <input type="url" id="new-artist-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9] mb-2" placeholder="https://blogger.googleusercontent.com/...">
-                    <label class="block text-[#EFEFC9]/50 mb-1">O sube desde tu dispositivo (puede no guardarse si pesa mucho):</label>
+                    <label class="block text-[#EFEFC9]/50 mb-1">O sube desde tu dispositivo:</label>
                     <input type="file" accept="image/*" id="new-artist-file" class="w-full text-[#EFEFC9]/80">
                 </div>
                 <div>
@@ -854,19 +828,19 @@
         function promptAddAnimation(artistId) {
             const html = `
                 <div>
-                    <label class="block text-[#EFEFC9]/70 mb-1">Título de la Animación</label>
-                    <input type="text" id="anim-title" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]">
+                    <label class="block text-[#EFEFC9]/70 mb-1">Título del Video</label>
+                    <input type="text" id="anim-title" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" placeholder="Ej. Reel de Miraculous / Animatic">
                 </div>
                 <div>
-                    <label class="block text-[#EFEFC9]/70 mb-1">URL del Video (MP4)</label>
-                    <input type="text" id="anim-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" placeholder="https://...">
+                    <label class="block text-[#EFEFC9]/70 mb-1">URL / Enlace del Video</label>
+                    <input type="text" id="anim-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" placeholder="Enlace de Instagram, TikTok, YouTube o Vimeo">
                 </div>
-                <button id="save-anim-btn" class="w-full bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-2 rounded-xl font-bold mt-2">Guardar Animación</button>
+                <button id="save-anim-btn" class="w-full bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-2 rounded-xl font-bold mt-2">Guardar Video</button>
             `;
-            openFormModal('Agregar Animación / Animatic', html);
+            openFormModal('Agregar Video / Reel / TikTok / YouTube', html);
 
             document.getElementById('save-anim-btn').onclick = () => {
-                const title = document.getElementById('anim-title').value.trim() || 'Animación';
+                const title = document.getElementById('anim-title').value.trim() || 'Video';
                 const url = document.getElementById('anim-url').value.trim();
                 if (!url) return;
 
@@ -880,7 +854,6 @@
             };
         }
 
-        /* BORRADOS */
         function deleteArtist(artistId, e) {
             e.stopPropagation();
             artistsData = artistsData.filter(a => a.id !== artistId);
@@ -929,7 +902,6 @@
             render();
         }
 
-        /* LIGHTBOX */
         function openModal(imgUrl, title) {
             const modal = document.getElementById('image-modal');
             document.getElementById('modal-image').src = imgUrl;
