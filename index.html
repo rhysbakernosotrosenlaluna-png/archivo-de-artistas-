@@ -1,0 +1,959 @@
+```html
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-[#2F1B1A] text-[#EFEFC9]">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archivo de Artistas</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK Modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Configuración de Firebase en la nube
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'archivo-artistas-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "demo-key",
+                authDomain: "demo.firebaseapp.com",
+                projectId: "demo-project",
+                storageBucket: "demo.appspot.com",
+                messagingSenderId: "123456789",
+                appId: "1:123456789:web:123456"
+              };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.db = db;
+        window.appId = appId;
+        window.auth = auth;
+
+        let currentUser = null;
+        let isDataLoadedFromCloud = false;
+
+        // Iniciar sesión anónima o con token para evitar bloqueos de iFrame
+        async function ensureAuth() {
+            if (auth.currentUser) return auth.currentUser;
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const res = await signInWithCustomToken(auth, __initial_auth_token);
+                    return res.user;
+                } else {
+                    const res = await signInAnonymously(auth);
+                    return res.user;
+                }
+            } catch (err) {
+                console.warn("Auth error fallback:", err);
+                return null;
+            }
+        }
+
+        window.initFirebaseSync = async function() {
+            await ensureAuth();
+            
+            // Ruta estricta de Firestore
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'store', 'artists_archive');
+            
+            // 1. PRIMERO Cargar de la nube sin sobreescribir jamás
+            try {
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data && Array.isArray(data.artists) && data.artists.length > 0) {
+                        window.artistsData = data.artists;
+                        isDataLoadedFromCloud = true;
+                        if (window.render) window.render();
+                    }
+                }
+            } catch(e) {
+                console.warn("Error leyendo Firestore inicial:", e);
+            }
+
+            // 2. ESCUCHAR CAMBIOS EN TIEMPO REAL
+            onSnapshot(docRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const cloudData = snapshot.data();
+                    if (cloudData && Array.isArray(cloudData.artists)) {
+                        window.artistsData = cloudData.artists;
+                        isDataLoadedFromCloud = true;
+                        try {
+                            localStorage.setItem('archivo_artistas_data', JSON.stringify(cloudData.artists));
+                        } catch(err) {}
+                        if (window.render) window.render();
+                    }
+                }
+            }, (error) => {
+                console.error("Error al sincronizar con la nube:", error);
+            });
+        };
+
+        window.saveDataToCloud = async function() {
+            try {
+                await ensureAuth();
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'store', 'artists_archive');
+                // Forzar guardado inmediato en la nube
+                await setDoc(docRef, { artists: window.artistsData });
+            } catch (err) {
+                console.error("Error guardando datos en la nube:", err);
+            }
+        };
+
+        // Iniciar sincronización automáticamente
+        window.addEventListener('DOMContentLoaded', () => {
+            window.initFirebaseSync();
+        });
+    </script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            olive: '#5A5E27',
+                            wine: '#640017',
+                            dark: '#2F1B1A',
+                            cream: '#EFEFC9',
+                            card: '#1F1110',
+                            border: '#451D1C'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        html { scroll-behavior: smooth; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #2F1B1A; }
+        ::-webkit-scrollbar-thumb { background: #640017; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #5A5E27; }
+        .glass { background: rgba(47, 27, 26, 0.95); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans antialiased text-[#EFEFC9] bg-[#2F1B1A] selection:bg-[#640017] selection:text-[#EFEFC9]">
+
+    <!-- Encabezado / Navegación Global -->
+    <header class="sticky top-0 z-30 glass border-b border-brand-wine/50 px-4 lg:px-8 py-3.5 flex items-center justify-between shadow-md">
+        <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateTo('directory')">
+            <div class="bg-[#5A5E27] p-2 rounded-xl text-[#EFEFC9] shadow-lg shadow-[#5A5E27]/30">
+                <i class="fa-solid fa-swatchbook text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight tracking-wide text-[#EFEFC9]">Archivo de Artistas</h1>
+                <p class="text-xs text-[#EFEFC9]/70">Directorio Ilustrado & Lector Digital</p>
+            </div>
+        </div>
+
+        <!-- Mapeo de migas de pan (Breadcrumbs) dinámicas -->
+        <nav id="breadcrumbs" class="hidden md:flex items-center space-x-2 text-sm text-[#EFEFC9]/70">
+            <!-- Se actualiza por JS -->
+        </nav>
+
+        <!-- Botón de retorno al inicio -->
+        <div class="flex items-center gap-2">
+            <button onclick="navigateTo('directory')" class="text-xs font-medium bg-brand-wine hover:bg-[#640017]/80 text-[#EFEFC9] px-3.5 py-2 rounded-xl border border-brand-border transition flex items-center gap-2">
+                <i class="fa-solid fa-house"></i>
+                <span class="hidden sm:inline">Inicio</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Contenido Principal Dinámico -->
+    <main id="app-content" class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        <!-- Renderizado dinámico vía JavaScript -->
+    </main>
+
+    <!-- Lightbox Modal para Ampliar Imágenes -->
+    <div id="image-modal" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300 bg-black/90 backdrop-blur-md flex flex-col justify-between p-4 md:p-8">
+        <div class="flex justify-between items-center text-[#EFEFC9] z-10">
+            <h3 id="modal-title" class="font-bold text-base md:text-lg"></h3>
+            <div class="flex items-center gap-3">
+                <a id="modal-download-btn" href="#" download target="_blank" class="bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-2 transition">
+                    <i class="fa-solid fa-download"></i> Descargar
+                </a>
+                <button onclick="closeModal()" class="bg-brand-wine hover:bg-brand-wine/80 text-[#EFEFC9] p-2 rounded-xl transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+        </div>
+        <div class="flex-1 flex items-center justify-center my-4 overflow-hidden">
+            <img id="modal-image" src="" alt="" class="max-h-full max-w-full object-contain rounded-lg shadow-2xl">
+        </div>
+    </div>
+
+    <!-- Modal para Formularios de Creación / Edición -->
+    <div id="form-modal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-brand-card border border-brand-wine rounded-2xl w-full max-w-md p-6 relative shadow-2xl text-[#EFEFC9]">
+            <button onclick="closeFormModal()" class="absolute top-4 right-4 text-[#EFEFC9]/60 hover:text-[#EFEFC9]">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 id="form-modal-title" class="text-lg font-bold text-[#EFEFC9] mb-4">Añadir Elemento</h3>
+            <div id="form-modal-body" class="space-y-4 text-xs">
+                <!-- Contenido dinámico inyectado JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================================================================
+           ESTADO INICIAL DE DATOS & PERSISTENCIA LOCAL Y NUBE
+           ========================================================================== */
+        const STORAGE_KEY = 'archivo_artistas_data';
+
+        let defaultArtistsData = [
+            {
+                id: 'elena-rodriguez',
+                name: 'Elena Rodríguez',
+                username: '@elena_art',
+                avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+                profileUrl: 'https://instagram.com',
+                bio: 'Ilustradora conceptual y creadora de cómics de ciencia ficción.',
+                comics: [
+                    {
+                        id: 'ecos-del-futuro',
+                        title: 'Ecos del Futuro',
+                        cover: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80',
+                        description: 'Un viaje a través de una metrópolis distópica sumergida en neón.',
+                        pages: [
+                            { pageNum: 1, url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80' },
+                            { pageNum: 2, url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=1200&q=80' }
+                        ]
+                    }
+                ],
+                fanarts: [
+                    { id: 'fa-1', title: 'Guerrera Neón', url: 'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=1200&q=80' },
+                    { id: 'fa-2', title: 'Cyberpunk City', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80' }
+                ],
+                animations: [
+                    { id: 'an-1', title: 'Paseo Nocturno (Loop)', videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4', thumbnail: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=600&q=80' }
+                ],
+                otherGalleries: []
+            }
+        ];
+
+        function loadStorageData() {
+            try {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                return saved ? JSON.parse(saved) : defaultArtistsData;
+            } catch(e) {
+                return defaultArtistsData;
+            }
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(window.artistsData));
+            } catch(e) {
+                console.warn('Almacenamiento local restringido por iframe:', e);
+            }
+            if (window.saveDataToCloud) {
+                window.saveDataToCloud();
+            }
+        }
+
+        /* Copia de Seguridad Local JSON */
+        function exportBackupData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.artistsData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `copia_artistas_${Date.now()}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importBackupData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (Array.isArray(importedData)) {
+                        window.artistsData = importedData;
+                        saveData();
+                        render();
+                    }
+                } catch(err) {
+                    console.error("Error al importar la copia de seguridad:", err);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        window.artistsData = loadStorageData();
+
+        /* ==========================================================================
+           ESTADO Y NAVEGACIÓN
+           ========================================================================== */
+        let state = {
+            view: 'directory',
+            artistId: null,
+            comicId: null,
+            comicViewMode: 'reader',
+            comicCurrentPage: 1
+        };
+
+        function navigateTo(view, artistId = null, comicId = null, comicViewMode = 'reader', page = 1) {
+            state.view = view;
+            state.artistId = artistId;
+            state.comicId = comicId;
+            state.comicViewMode = comicViewMode;
+            state.comicCurrentPage = page;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            render();
+        }
+
+        /* ==========================================================================
+           RENDERIZADO
+           ========================================================================== */
+        function render() {
+            const app = document.getElementById('app-content');
+            const breadcrumbs = document.getElementById('breadcrumbs');
+
+            if (state.view === 'directory') {
+                breadcrumbs.innerHTML = `<span class="text-[#EFEFC9] font-medium"><i class="fa-solid fa-users mr-1"></i> Directorio de Artistas</span>`;
+                app.innerHTML = renderDirectory();
+            } else if (state.view === 'artist') {
+                const artist = artistsData.find(a => a.id === state.artistId);
+                if (!artist) { navigateTo('directory'); return; }
+                
+                breadcrumbs.innerHTML = `
+                    <button onclick="navigateTo('directory')" class="hover:text-amber-200">Directorio</button>
+                    <span>/</span>
+                    <span class="text-[#EFEFC9] font-medium">${artist.name}</span>
+                `;
+                app.innerHTML = renderArtistProfile(artist);
+            } else if (state.view === 'comic') {
+                const artist = artistsData.find(a => a.id === state.artistId);
+                const comic = artist?.comics.find(c => c.id === state.comicId);
+                if (!artist || !comic) { navigateTo('directory'); return; }
+
+                breadcrumbs.innerHTML = `
+                    <button onclick="navigateTo('directory')" class="hover:text-amber-200">Directorio</button>
+                    <span>/</span>
+                    <button onclick="navigateTo('artist', '${artist.id}')" class="hover:text-amber-200">${artist.name}</button>
+                    <span>/</span>
+                    <span class="text-[#EFEFC9] font-medium">${comic.title}</span>
+                `;
+                app.innerHTML = renderComicPage(artist, comic);
+            }
+        }
+
+        /* 1. VISTA DIRECTORIO */
+        function renderDirectory() {
+            return `
+                <div class="space-y-6">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-wine/50 pb-6">
+                        <div>
+                            <h2 class="text-3xl font-extrabold text-[#EFEFC9] tracking-tight">Directorio de Artistas</h2>
+                            <p class="text-[#EFEFC9]/70 text-sm mt-1">Explora o añade creadores para gestionar sus cómics e ilustraciones.</p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="promptAddArtist()" class="bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-[#5A5E27]/30 transition">
+                                <i class="fa-solid fa-plus text-sm"></i> Nuevo Artista
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="artists-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        ${artistsData.map(artist => `
+                            <div class="group relative bg-brand-card hover:bg-black/40 border border-brand-wine/40 hover:border-brand-wine rounded-2xl p-4 transition-all duration-300 flex flex-col items-center text-center shadow-lg">
+                                <button onclick="deleteArtist('${artist.id}', event)" title="Eliminar Artista" class="absolute top-3 right-3 text-[#EFEFC9]/50 hover:text-red-400 p-1.5 rounded-lg transition z-10">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                                <div onclick="navigateTo('artist', '${artist.id}')" class="cursor-pointer w-full flex flex-col items-center">
+                                    <div class="relative w-28 h-28 mb-4 rounded-full overflow-hidden ring-4 ring-brand-wine group-hover:ring-[#5A5E27] transition">
+                                        <img src="${artist.avatar}" alt="${artist.name}" class="w-full h-full object-cover">
+                                    </div>
+                                    <h3 class="font-bold text-[#EFEFC9] text-lg group-hover:text-amber-200 transition">${artist.name}</h3>
+                                    <span class="text-xs text-[#EFEFC9]/60 mb-2">${artist.username}</span>
+                                    <p class="text-xs text-[#EFEFC9]/70 line-clamp-2 px-2 mb-4">${artist.bio || 'Sin biografía disponible'}</p>
+                                </div>
+                                <div class="mt-auto pt-3 border-t border-brand-wine/30 w-full flex justify-center gap-4 text-xs text-[#EFEFC9]/70">
+                                    <span><i class="fa-solid fa-book-open text-[#5A5E27] mr-1"></i> ${artist.comics ? artist.comics.length : 0}</span>
+                                    <span><i class="fa-solid fa-image text-amber-200 mr-1"></i> ${artist.fanarts ? artist.fanarts.length : 0}</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        /* 2. VISTA FICHA DEL ARTISTA */
+        function renderArtistProfile(artist) {
+            return `
+                <div class="space-y-10">
+                    <div class="bg-brand-card border border-brand-wine/60 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6 shadow-xl relative">
+                        <div class="relative group w-28 h-28 md:w-36 md:h-36 rounded-2xl overflow-hidden ring-4 ring-brand-wine flex-shrink-0">
+                            <img src="${artist.avatar}" alt="${artist.name}" class="w-full h-full object-cover">
+                            <button onclick="promptChangeAvatar('${artist.id}')" class="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition flex flex-col items-center justify-center text-xs text-[#EFEFC9] gap-1">
+                                <i class="fa-solid fa-camera"></i> Cambiar Foto
+                            </button>
+                        </div>
+                        <div class="flex-1 text-center md:text-left">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div>
+                                    <h2 class="text-2xl md:text-3xl font-extrabold text-[#EFEFC9]">${artist.name}</h2>
+                                    <span class="text-amber-200 text-sm font-medium">${artist.username}</span>
+                                </div>
+                                <div class="flex flex-wrap justify-center md:justify-end gap-2">
+                                    ${artist.profileUrl ? `
+                                        <a href="${artist.profileUrl}" target="_blank" class="inline-flex items-center gap-2 bg-brand-wine hover:bg-brand-wine/80 text-[#EFEFC9] text-xs font-semibold px-3 py-2 rounded-xl transition border border-brand-border">
+                                            <i class="fa-solid fa-link"></i> Cuenta Original
+                                        </a>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            <p class="text-[#EFEFC9]/90 text-sm mt-4 leading-relaxed max-w-2xl">${artist.bio}</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3 bg-brand-card border border-brand-wine/40 p-4 rounded-2xl items-center">
+                        <span class="text-xs font-bold uppercase tracking-wider text-[#EFEFC9]/70 mr-2"><i class="fa-solid fa-plus-circle mr-1"></i> Agregar Contenido:</span>
+                        <button onclick="promptAddComic('${artist.id}')" class="bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-book-open"></i> + Nuevo Cómic
+                        </button>
+                        <button onclick="promptAddFanart('${artist.id}')" class="bg-brand-wine hover:bg-brand-wine/80 text-[#EFEFC9] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-brand-border">
+                            <i class="fa-solid fa-image"></i> + Nuevo Fanart / Ilustración
+                        </button>
+                        <button onclick="promptAddAnimation('${artist.id}')" class="bg-[#5A5E27]/80 hover:bg-[#5A5E27] text-[#EFEFC9] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-film"></i> + Nueva Animación
+                        </button>
+                    </div>
+
+                    ${artist.comics && artist.comics.length > 0 ? `
+                        <section class="space-y-4">
+                            <div class="flex items-center justify-between border-b border-brand-wine/40 pb-3">
+                                <div class="flex items-center gap-3">
+                                    <i class="fa-solid fa-book-open text-amber-200 text-xl"></i>
+                                    <h3 class="text-xl font-bold text-[#EFEFC9]">Cómics y Publicaciones</h3>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                ${artist.comics.map(comic => `
+                                    <div class="group relative bg-brand-card border border-brand-wine/50 hover:border-[#5A5E27] rounded-2xl overflow-hidden transition duration-300">
+                                        <button onclick="deleteComic('${artist.id}', '${comic.id}', event)" class="absolute top-2 right-2 z-10 bg-black/80 hover:bg-red-600 text-[#EFEFC9] p-1.5 rounded-lg text-xs transition">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                        <div onclick="navigateTo('comic', '${artist.id}', '${comic.id}')" class="cursor-pointer">
+                                            <div class="aspect-[3/4] overflow-hidden relative bg-black/50">
+                                                <img src="${comic.cover}" alt="${comic.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                                                <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-80"></div>
+                                                <div class="absolute bottom-3 left-3 right-3">
+                                                    <span class="text-[10px] uppercase font-bold bg-[#5A5E27] text-[#EFEFC9] px-2 py-0.5 rounded-md">
+                                                        ${comic.pages.length} Páginas
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div class="p-4">
+                                                <h4 class="font-bold text-[#EFEFC9] group-hover:text-amber-200 transition">${comic.title}</h4>
+                                                <p class="text-xs text-[#EFEFC9]/70 mt-1 line-clamp-2">${comic.description}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </section>
+                    ` : ''}
+
+                    ${artist.fanarts && artist.fanarts.length > 0 ? `
+                        <section class="space-y-4">
+                            <div class="flex items-center gap-3 border-b border-brand-wine/40 pb-3">
+                                <i class="fa-solid fa-palette text-[#5A5E27] text-xl"></i>
+                                <h3 class="text-xl font-bold text-[#EFEFC9]">Fanarts e Ilustraciones</h3>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                ${artist.fanarts.map(item => `
+                                    <div class="group relative aspect-square rounded-xl overflow-hidden bg-brand-card border border-brand-wine/50 hover:border-[#5A5E27] transition">
+                                        <button onclick="deleteFanart('${artist.id}', '${item.id}', event)" class="absolute top-2 right-2 z-10 bg-black/80 hover:bg-red-600 text-[#EFEFC9] p-1 rounded-md text-xs transition">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                        <img src="${item.url}" alt="${item.title}" class="w-full h-full object-cover">
+                                        <div onclick="openModal('${item.url}', '${item.title}')" class="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition flex flex-col justify-end p-3 cursor-pointer">
+                                            <p class="text-xs font-semibold text-[#EFEFC9] truncate">${item.title}</p>
+                                            <span class="text-[10px] text-amber-200 mt-0.5"><i class="fa-solid fa-expand mr-1"></i> Ampliar</span>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </section>
+                    ` : ''}
+
+                    ${artist.animations && artist.animations.length > 0 ? `
+                        <section class="space-y-4">
+                            <div class="flex items-center gap-3 border-b border-brand-wine/40 pb-3">
+                                <i class="fa-solid fa-film text-amber-200 text-xl"></i>
+                                <h3 class="text-xl font-bold text-[#EFEFC9]">Animatics & Animaciones</h3>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                ${artist.animations.map(anim => `
+                                    <div class="relative bg-brand-card border border-brand-wine/50 rounded-2xl overflow-hidden p-3">
+                                        <button onclick="deleteAnimation('${artist.id}', '${anim.id}')" class="absolute top-5 right-5 z-10 bg-black/80 hover:bg-red-600 text-[#EFEFC9] p-1.5 rounded-lg text-xs transition">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                        <div class="aspect-video rounded-xl overflow-hidden bg-black mb-3">
+                                            <video controls poster="${anim.thumbnail || ''}" class="w-full h-full object-cover">
+                                                <source src="${anim.videoUrl}" type="video/mp4">
+                                            </video>
+                                        </div>
+                                        <h4 class="font-semibold text-[#EFEFC9] text-sm px-1">${anim.title}</h4>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </section>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        /* 3. VISTA LECTOR DE CÓMIC */
+        function renderComicPage(artist, comic) {
+            const totalPages = comic.pages.length;
+            const currentPageObj = comic.pages.find(p => p.pageNum === state.comicCurrentPage) || comic.pages[0];
+
+            return `
+                <div class="space-y-6">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-brand-card border border-brand-wine/50 rounded-2xl p-4 md:p-6">
+                        <div>
+                            <button onclick="navigateTo('artist', '${artist.id}')" class="text-xs text-amber-200 hover:underline mb-1 inline-block">
+                                &larr; Volver a ${artist.name}
+                            </button>
+                            <h2 class="text-2xl font-bold text-[#EFEFC9]">${comic.title}</h2>
+                            <p class="text-xs text-[#EFEFC9]/70 mt-0.5">${comic.description}</p>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button onclick="promptAddComicPage('${artist.id}', '${comic.id}')" class="bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-plus"></i> + Nueva Página
+                            </button>
+                            <div class="flex items-center bg-black/40 p-1 rounded-xl border border-brand-wine/40">
+                                <button onclick="navigateTo('comic', '${artist.id}', '${comic.id}', 'reader', ${state.comicCurrentPage})" 
+                                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${state.comicViewMode === 'reader' ? 'bg-[#5A5E27] text-[#EFEFC9]' : 'text-[#EFEFC9]/60'}">
+                                    <i class="fa-solid fa-book-open"></i> Lector
+                                </button>
+                                <button onclick="navigateTo('comic', '${artist.id}', '${comic.id}', 'grid', ${state.comicCurrentPage})" 
+                                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${state.comicViewMode === 'grid' ? 'bg-[#5A5E27] text-[#EFEFC9]' : 'text-[#EFEFC9]/60'}">
+                                    <i class="fa-solid fa-border-all"></i> Cuadrícula
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${state.comicViewMode === 'grid' ? `
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            ${comic.pages.map(page => `
+                                <div class="group relative bg-brand-card border border-brand-wine/40 hover:border-[#5A5E27] rounded-xl overflow-hidden transition p-2 flex flex-col">
+                                    <button onclick="deleteComicPage('${artist.id}', '${comic.id}', ${page.pageNum}, event)" class="absolute top-3 right-3 z-10 bg-black/80 hover:bg-red-600 text-[#EFEFC9] p-1 rounded-md text-xs transition">
+                                        <i class="fa-solid fa-trash"></i>
+                                    </button>
+                                    <div onclick="navigateTo('comic', '${artist.id}', '${comic.id}', 'reader', ${page.pageNum})" class="cursor-pointer aspect-[3/4] bg-black/60 rounded-lg overflow-hidden relative">
+                                        <img src="${page.url}" alt="Página ${page.pageNum}" class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="mt-2 flex justify-between items-center text-xs text-[#EFEFC9]/70 px-1">
+                                        <span>Página ${page.pageNum}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${state.comicViewMode === 'reader' && currentPageObj ? `
+                        <div class="flex flex-col items-center space-y-4">
+                            <div class="flex items-center justify-between w-full max-w-3xl bg-brand-card border border-brand-wine/50 px-4 py-2.5 rounded-xl text-sm">
+                                <button onclick="changeComicPage(-1)" ${state.comicCurrentPage === 1 ? 'disabled class="opacity-40 text-[#EFEFC9]/40"' : 'class="text-amber-200 hover:text-white font-medium"'}>
+                                    <i class="fa-solid fa-chevron-left"></i> Anterior
+                                </button>
+                                <span class="font-medium text-[#EFEFC9] text-xs">Página ${state.comicCurrentPage} de ${totalPages}</span>
+                                <button onclick="changeComicPage(1)" ${state.comicCurrentPage === totalPages ? 'disabled class="opacity-40 text-[#EFEFC9]/40"' : 'class="text-amber-200 hover:text-white font-medium"'}>
+                                    Siguiente <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </div>
+
+                            <div class="relative max-w-4xl w-full bg-brand-card border border-brand-wine/50 rounded-2xl overflow-hidden flex justify-center items-center">
+                                <img src="${currentPageObj.url}" alt="Página ${state.comicCurrentPage}" class="max-h-[80vh] w-auto object-contain">
+                            </div>
+
+                            <div class="flex items-center gap-3 pt-2">
+                                <button onclick="changeComicPage(-1)" ${state.comicCurrentPage === 1 ? 'disabled class="opacity-40 bg-brand-wine/40 text-[#EFEFC9]/40 px-4 py-2 rounded-xl text-xs"' : 'class="bg-brand-wine hover:bg-brand-wine/80 text-[#EFEFC9] px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 border border-brand-border"'}>
+                                    <i class="fa-solid fa-arrow-left"></i> Anterior
+                                </button>
+                                <a href="${currentPageObj.url}" download target="_blank" class="bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+                                    <i class="fa-solid fa-download"></i> Descargar Original
+                                </a>
+                                <button onclick="changeComicPage(1)" ${state.comicCurrentPage === totalPages ? 'disabled class="opacity-40 bg-brand-wine/40 text-[#EFEFC9]/40 px-4 py-2 rounded-xl text-xs"' : 'class="bg-brand-wine hover:bg-brand-wine/80 text-[#EFEFC9] px-5 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 border border-brand-border"'}>
+                                    Siguiente <i class="fa-solid fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function changeComicPage(delta) {
+            const artist = artistsData.find(a => a.id === state.artistId);
+            const comic = artist?.comics.find(c => c.id === state.comicId);
+            if (!comic) return;
+
+            const newPage = state.comicCurrentPage + delta;
+            if (newPage >= 1 && newPage <= comic.pages.length) {
+                state.comicCurrentPage = newPage;
+                render();
+            }
+        }
+
+        /* ==========================================================================
+           GESTIÓN Y MANIPULACIÓN DE DATOS (FORMULARIOS Y ARCHIVOS)
+           ========================================================================== */
+        function handleFileSelect(event, callback) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) { callback(e.target.result); };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function openFormModal(title, htmlBody) {
+            document.getElementById('form-modal-title').innerText = title;
+            document.getElementById('form-modal-body').innerHTML = htmlBody;
+            document.getElementById('form-modal').classList.remove('hidden');
+        }
+
+        function closeFormModal() {
+            document.getElementById('form-modal').classList.add('hidden');
+        }
+
+        /* ACCIONES DE FORMULARIOS */
+        function promptAddArtist() {
+            let selectedImage = 'https://placehold.co/400x400/2F1B1A/EFEFC9?text=Artista';
+            
+            const html = `
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">Nombre del Artista *</label>
+                    <input type="text" id="new-artist-name" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" placeholder="Ej. Carlos Ruiz">
+                </div>
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">Usuario / Redes</label>
+                    <input type="text" id="new-artist-user" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" placeholder="Ej. @carlos_draws">
+                </div>
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">URL de la Imagen (Recomendado: Blogger / Enlace web)</label>
+                    <input type="url" id="new-artist-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9] mb-2" placeholder="https://blogger.googleusercontent.com/...">
+                    <label class="block text-[#EFEFC9]/50 mb-1">O sube desde tu dispositivo (puede no guardarse si pesa mucho):</label>
+                    <input type="file" accept="image/*" id="new-artist-file" class="w-full text-[#EFEFC9]/80">
+                </div>
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">Biografía</label>
+                    <textarea id="new-artist-bio" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" rows="2" placeholder="Breve descripción..."></textarea>
+                </div>
+                <button id="save-artist-btn" class="w-full bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-2 rounded-xl font-bold mt-2">Guardar Artista</button>
+            `;
+            openFormModal('Agregar Nuevo Artista', html);
+
+            document.getElementById('new-artist-file').addEventListener('change', (e) => {
+                handleFileSelect(e, (url) => { selectedImage = url; });
+            });
+
+            document.getElementById('save-artist-btn').onclick = () => {
+                const name = document.getElementById('new-artist-name').value.trim();
+                const username = document.getElementById('new-artist-user').value.trim() || '@artista';
+                const bio = document.getElementById('new-artist-bio').value.trim();
+                const directUrl = document.getElementById('new-artist-url').value.trim();
+
+                if (directUrl) selectedImage = directUrl;
+                if (!name) return;
+
+                const newArtist = {
+                    id: 'artist-' + Date.now(),
+                    name: name,
+                    username: username,
+                    avatar: selectedImage,
+                    bio: bio,
+                    profileUrl: '',
+                    comics: [],
+                    fanarts: [],
+                    animations: []
+                };
+
+                window.artistsData.push(newArtist);
+                saveData();
+                closeFormModal();
+                render();
+            };
+        }
+
+        function promptChangeAvatar(artistId) {
+            const html = `
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">URL de la Imagen (Blogger, etc.)</label>
+                    <input type="url" id="avatar-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9] mb-2" placeholder="https://...">
+                    <label class="block text-[#EFEFC9]/50 mb-1">O sube un archivo local:</label>
+                    <input type="file" accept="image/*" id="avatar-file" class="w-full text-[#EFEFC9]/80">
+                </div>
+                <button id="save-avatar-btn" class="w-full bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-2 rounded-xl font-bold mt-2">Actualizar Foto</button>
+            `;
+            openFormModal('Cambiar Foto de Perfil', html);
+
+            let selectedImage = null;
+            document.getElementById('avatar-file').addEventListener('change', (e) => {
+                handleFileSelect(e, (url) => { selectedImage = url; });
+            });
+
+            document.getElementById('save-avatar-btn').onclick = () => {
+                const directUrl = document.getElementById('avatar-url').value.trim();
+                const finalImg = directUrl || selectedImage;
+                if (finalImg) {
+                    const artist = artistsData.find(a => a.id === artistId);
+                    if (artist) artist.avatar = finalImg;
+                    saveData();
+                }
+                closeFormModal();
+                render();
+            };
+        }
+
+        function promptAddComic(artistId) {
+            let selectedCover = 'https://placehold.co/600x800/2F1B1A/EFEFC9?text=Portada+Comic';
+            const html = `
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">Título del Cómic *</label>
+                    <input type="text" id="comic-title" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]">
+                </div>
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">Descripción</label>
+                    <textarea id="comic-desc" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" rows="2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">URL de Portada (Blogger / Internet)</label>
+                    <input type="url" id="comic-cover-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9] mb-2" placeholder="https://...">
+                    <label class="block text-[#EFEFC9]/50 mb-1">O sube un archivo local:</label>
+                    <input type="file" accept="image/*" id="comic-cover-file" class="w-full text-[#EFEFC9]/80">
+                </div>
+                <button id="save-comic-btn" class="w-full bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-2 rounded-xl font-bold mt-2">Crear Cómic</button>
+            `;
+            openFormModal('Añadir Nuevo Cómic', html);
+
+            document.getElementById('comic-cover-file').addEventListener('change', (e) => {
+                handleFileSelect(e, (url) => { selectedCover = url; });
+            });
+
+            document.getElementById('save-comic-btn').onclick = () => {
+                const title = document.getElementById('comic-title').value.trim();
+                const desc = document.getElementById('comic-desc').value.trim();
+                const directUrl = document.getElementById('comic-cover-url').value.trim();
+                if (directUrl) selectedCover = directUrl;
+
+                if (!title) return;
+
+                const artist = artistsData.find(a => a.id === artistId);
+                if (artist) {
+                    artist.comics.push({
+                        id: 'comic-' + Date.now(),
+                        title: title,
+                        cover: selectedCover,
+                        description: desc,
+                        pages: []
+                    });
+                    saveData();
+                }
+                closeFormModal();
+                render();
+            };
+        }
+
+        function promptAddComicPage(artistId, comicId) {
+            let selectedPageUrl = null;
+            const html = `
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">URL de la Imagen (Blogger / Internet)</label>
+                    <input type="url" id="page-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9] mb-2" placeholder="https://...">
+                    <label class="block text-[#EFEFC9]/50 mb-1">O selecciona una imagen local:</label>
+                    <input type="file" accept="image/*" id="page-file" class="w-full text-[#EFEFC9]/80">
+                </div>
+                <button id="save-page-btn" class="w-full bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-2 rounded-xl font-bold mt-2">Añadir Página</button>
+            `;
+            openFormModal('Añadir Página al Cómic', html);
+
+            document.getElementById('page-file').addEventListener('change', (e) => {
+                handleFileSelect(e, (url) => { selectedPageUrl = url; });
+            });
+
+            document.getElementById('save-page-btn').onclick = () => {
+                const directUrl = document.getElementById('page-url').value.trim();
+                const finalUrl = directUrl || selectedPageUrl;
+
+                if (!finalUrl) return;
+                const artist = artistsData.find(a => a.id === artistId);
+                const comic = artist?.comics.find(c => c.id === comicId);
+                if (comic) {
+                    comic.pages.push({
+                        pageNum: comic.pages.length + 1,
+                        url: finalUrl
+                    });
+                    saveData();
+                }
+                closeFormModal();
+                render();
+            };
+        }
+
+        function promptAddFanart(artistId) {
+            let selectedUrl = null;
+            const html = `
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">Título de la Ilustración</label>
+                    <input type="text" id="fanart-title" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]">
+                </div>
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">URL de la Imagen (Blogger / Enlace directo)</label>
+                    <input type="url" id="fanart-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9] mb-2" placeholder="https://...">
+                    <label class="block text-[#EFEFC9]/50 mb-1">O sube un archivo local:</label>
+                    <input type="file" accept="image/*" id="fanart-file" class="w-full text-[#EFEFC9]/80">
+                </div>
+                <button id="save-fanart-btn" class="w-full bg-brand-wine hover:bg-brand-wine/80 text-[#EFEFC9] py-2 rounded-xl font-bold mt-2">Guardar Fanart</button>
+            `;
+            openFormModal('Agregar Fanart / Ilustración', html);
+
+            document.getElementById('fanart-file').addEventListener('change', (e) => {
+                handleFileSelect(e, (url) => { selectedUrl = url; });
+            });
+
+            document.getElementById('save-fanart-btn').onclick = () => {
+                const title = document.getElementById('fanart-title').value.trim() || 'Ilustración';
+                const directUrl = document.getElementById('fanart-url').value.trim();
+                const finalUrl = directUrl || selectedUrl;
+
+                if (!finalUrl) return;
+
+                const artist = artistsData.find(a => a.id === artistId);
+                if (artist) {
+                    artist.fanarts.push({ id: 'fa-' + Date.now(), title: title, url: finalUrl });
+                    saveData();
+                }
+                closeFormModal();
+                render();
+            };
+        }
+
+        function promptAddAnimation(artistId) {
+            const html = `
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">Título de la Animación</label>
+                    <input type="text" id="anim-title" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]">
+                </div>
+                <div>
+                    <label class="block text-[#EFEFC9]/70 mb-1">URL del Video (MP4)</label>
+                    <input type="text" id="anim-url" class="w-full bg-black/50 border border-brand-wine p-2 rounded-lg text-[#EFEFC9]" placeholder="https://...">
+                </div>
+                <button id="save-anim-btn" class="w-full bg-[#5A5E27] hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-2 rounded-xl font-bold mt-2">Guardar Animación</button>
+            `;
+            openFormModal('Agregar Animación / Animatic', html);
+
+            document.getElementById('save-anim-btn').onclick = () => {
+                const title = document.getElementById('anim-title').value.trim() || 'Animación';
+                const url = document.getElementById('anim-url').value.trim();
+                if (!url) return;
+
+                const artist = artistsData.find(a => a.id === artistId);
+                if (artist) {
+                    artist.animations.push({ id: 'an-' + Date.now(), title: title, videoUrl: url, thumbnail: '' });
+                    saveData();
+                }
+                closeFormModal();
+                render();
+            };
+        }
+
+        /* BORRADOS */
+        function deleteArtist(artistId, e) {
+            e.stopPropagation();
+            artistsData = artistsData.filter(a => a.id !== artistId);
+            saveData();
+            render();
+        }
+
+        function deleteComic(artistId, comicId, e) {
+            e.stopPropagation();
+            const artist = artistsData.find(a => a.id === artistId);
+            if (artist) {
+                artist.comics = artist.comics.filter(c => c.id !== comicId);
+                saveData();
+            }
+            render();
+        }
+
+        function deleteFanart(artistId, fanartId, e) {
+            e.stopPropagation();
+            const artist = artistsData.find(a => a.id === artistId);
+            if (artist) {
+                artist.fanarts = artist.fanarts.filter(f => f.id !== fanartId);
+                saveData();
+            }
+            render();
+        }
+
+        function deleteAnimation(artistId, animId) {
+            const artist = artistsData.find(a => a.id === artistId);
+            if (artist) {
+                artist.animations = artist.animations.filter(a => a.id !== animId);
+                saveData();
+            }
+            render();
+        }
+
+        function deleteComicPage(artistId, comicId, pageNum, e) {
+            e.stopPropagation();
+            const artist = artistsData.find(a => a.id === artistId);
+            const comic = artist?.comics.find(c => c.id === comicId);
+            if (comic) {
+                comic.pages = comic.pages.filter(p => p.pageNum !== pageNum);
+                comic.pages.forEach((p, idx) => p.pageNum = idx + 1);
+                saveData();
+            }
+            render();
+        }
+
+        /* LIGHTBOX */
+        function openModal(imgUrl, title) {
+            const modal = document.getElementById('image-modal');
+            document.getElementById('modal-image').src = imgUrl;
+            document.getElementById('modal-title').innerText = title || 'Ilustración';
+            document.getElementById('modal-download-btn').href = imgUrl;
+
+            modal.classList.remove('hidden', 'pointer-events-none', 'opacity-0');
+            modal.classList.add('opacity-100');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('image-modal');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }, 300);
+        }
+
+        window.onload = function() {
+            render();
+        };
+    </script>
+</body>
+</html>
+```
