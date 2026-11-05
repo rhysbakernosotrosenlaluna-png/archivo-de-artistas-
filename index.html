@@ -49,8 +49,6 @@ body { background-color: #121212; color: #EFEFC9; font-family: system-ui, -apple
 <button type="button" id="btn-unlock" onclick="checkPin()" class="w-full bg-[#5A5E27] active:bg-[#5A5E27]/60 hover:bg-[#5A5E27]/80 text-[#EFEFC9] py-3 rounded-xl font-bold text-sm transition cursor-pointer select-none">
     Desbloquear Archivo
 </button>
-Desbloquear Archivo
-</button>
 </div>
 </div>
 <!-- CONTENIDO DE LA APLICACIÓN (OCULTO HASTA INGRESAR EL PIN) -->
@@ -104,721 +102,161 @@ Desbloquear Archivo
 <i class="fa-solid fa-download mr-1"></i> Abrir imagen original
 </a>
 </div>
-<script>        
-                    // CONTRASEÑA SECRETA DE CHAT NOIR
-        const SECRET_PIN = "Ch4t N01r";
+<script>
+// CONTRASEÑA Y CONTROL DE ACCESO
+const SECRET_PIN = 'Ch4t N01r';
+function checkPin() {
+  const input = document.getElementById('pin-input');
+  const error = document.getElementById('pin-error');
+  const screen = document.getElementById('pin-screen');
+  const wrapper = document.getElementById('app-wrapper');
 
-        function checkPin() {
-            const input = document.getElementById('pin-input');
-            const error = document.getElementById('pin-error');
-            const screen = document.getElementById('pin-screen');
-            const app = document.getElementById('app-content');
-            const val = input ? input.value.trim() : '';
+  if (!input || !wrapper || input.value.trim() !== SECRET_PIN) {
+    error?.classList.remove('hidden');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    return;
+  }
 
-            if (val === SECRET_PIN) {
-                if (screen) screen.classList.add('hidden');
-                if (app) {
-                    app.classList.remove('hidden');
-                    app.classList.add('flex');
-                }
-                if (error) error.classList.add('hidden');
-                sessionStorage.setItem('archive_unlocked', 'true');
-            } else {
-                if (error) error.classList.remove('hidden');
-                if (input) {
-                    input.value = '';
-                    input.focus();
-                }
-            }
-        }
+  // Primero se muestra la aplicación. El bloqueo no debe fallar
+  // si el navegador impide guardar datos de sesión.
+  screen?.classList.add('hidden');
+  wrapper.classList.remove('hidden');
+  wrapper.classList.add('flex');
+  error?.classList.add('hidden');
 
-        function lockApp() {
-            sessionStorage.removeItem('archive_unlocked');
-            location.reload();
-        }
-    
+  try {
+    sessionStorage.setItem('archive_unlocked', 'true');
+  } catch (error) {
+    console.warn('No se pudo guardar el estado de sesión:', error);
+  }
+
+  render();
+}
+
+function lockApp() {
+  try {
+    sessionStorage.removeItem('archive_unlocked');
+  } catch (error) {
+    console.warn('No se pudo limpiar el estado de sesión:', error);
+  }
+  location.reload();
+}
+
 // BASE DE DATOS LOCAL
-let artistsData = JSON.parse(localStorage.getItem('miraculous_artists_db')) || [
-{
-id: 'art-demo-1',
-name: 'Artista Ejemplo',
-username: '@miraculous_fanart',
-avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
-profileUrl: 'https://instagram.com',
-bio: 'Creador de fancomics y AU de Miraculous Ladybug.',
-comics: [
-{
-id: 'comic-1',
-title: 'El Secreto de París',
-cover: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80',
-description: 'Un fancomic alternativo sobre Ladybug y Chat Noir.',
-displayMode: 'seasons_chapters',
-activeSeason: 'Temporada 1',
-activeChapter: 'Capítulo 1',
-seasonsData: [
-{
-name: 'Temporada 1',
-chapters: [
-{
-name: 'Capítulo 1',
-pages: [
-{ url: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80' }
-]
-}
-]
-}
-],
-loreNotes: [
-{ title: 'Concepción del AU', text: 'Esta historia transcurre 3 años después de la temporada 5.', imageUrl: '' }
-],
-fanfics: [
-{ title: 'El diario de Marinette', author: 'Artista Ejemplo', link: 'https://canva.com', description: 'Historia completa en Canva.' }
-],
-sketches: [],
-videos: []
-}
-],
-fanarts: [],
-animations: []
-}
-];
-let state = {
-view: 'home',
-selectedArtistId: null,
-selectedComicId: null,
-comicTab: 'pages',
-comicViewMode: 'gallery',
-comicCurrentPage: 1
-};
-function saveData() {
-localStorage.setItem('miraculous_artists_db', JSON.stringify(artistsData));
-}
-function navigateTo(view, artistId = null, comicId = null, comicTab = 'pages', pageNum = 1) {
-state.view = view;
-state.selectedArtistId = artistId;
-state.selectedComicId = comicId;
-state.comicTab = comicTab;
-state.comicCurrentPage = pageNum;
-render();
-}
-function render() {
-const container = document.getElementById('app-content');
-if (!container) return;
-if (state.view === 'home') {
-renderHome(container);
-} else if (state.view === 'artist') {
-renderArtist(container);
-} else if (state.view === 'comic') {
-renderComic(container);
-}
-}
-// 1. VISTA PRINCIPAL
-function renderHome(container) {
-container.innerHTML = `
-<div class="space-y-6">
-<div class="flex items-center justify-between">
-<h2 class="text-xl font-bold text-amber-200">Artistas Registrados (${artistsData.length})</h2>
-</div>
-{artistsData.length === 0 ? `
-<div class="text-center py-12 bg-brand-card border border-brand-wine/30 rounded-2xl">
-<p class="text-[#EFEFC9]/60">No hay artistas registrados aún.</p>
-<button onclick="promptAddArtist()" class="mt-4 bg-[#5A5E27] text-white px-4 py-2 rounded-xl text-xs font-bold">+ Crear Primer Artista</button>
-</div>
-` : `
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-${artistsData.map(artist => `
-<div onclick="navigateTo('artist', '${artist.id}')" class="bg-brand-card border border-brand-wine/40 hover:border-brand-border p-4 rounded-2xl transition cursor-pointer flex flex-col justify-between group">
-<div class="flex items-center gap-3">
-<img src="${artist.avatar}" alt="${artist.name}" class="w-14 h-14 rounded-full object-cover border-2 border-brand-wine group-hover:border-amber-200 transition">
-<div class="overflow-hidden">
-<h3 class="font-bold text-base text-amber-100 truncate">{artist.name}</h3>
-<p class="text-xs text-[#5A5E27] font-semibold">{artist.username}</p>
-</div>
-</div>
-<p class="text-xs text-[#EFEFC9]/70 mt-3 line-clamp-2">{artist.bio || 'Sin biografía.'}</p>
-<div class="mt-4 pt-3 border-t border-brand-wine/30 flex justify-between items-center text-xs text-amber-200/80">
-<span><i class="fa-solid fa-book-open mr-1"></i> ${artist.comics ? artist.comics.length : 0} Cómics</span>
-<span><i class="fa-solid fa-image mr-1"></i> ${(artist.fanarts || []).length} Fanarts</span>
-<button onclick="deleteArtist('${artist.id}', event)" class="text-red-400 hover:text-red-300 p-1">
-<i class="fa-solid fa-trash"></i>
-</button>
-</div>
-</div>
-).join('')} </div> }
-</div>
-`;
-}
-// 2. VISTA DE ARTISTA
-function renderArtist(container) {
-const artist = artistsData.find(a => a.id === state.selectedArtistId);
-if (!artist) { navigateTo('home'); return; }
-const sortedFanarts = [...(artist.fanarts || [])].reverse();
-container.innerHTML = `
-<div class="space-y-6">
-<button onclick="navigateTo('home')" class="text-xs font-semibold text-amber-200 hover:underline flex items-center gap-1">
-<i class="fa-solid fa-arrow-left"></i> Volver a la lista
-</button>
-<div class="bg-brand-card border border-brand-wine/50 p-6 rounded-2xl flex flex-col sm:flex-row items-center sm:items-start gap-5 relative">
-<img src="${artist.avatar}" alt="${artist.name}" class="w-24 h-24 rounded-full object-cover border-4 border-brand-wine">
-<div class="flex-grow text-center sm:text-left">
-<h2 class="text-2xl font-bold text-amber-100">{artist.name}</h2>
-<p class="text-sm font-semibold text-[#5A5E27]">{artist.username}</p>
-<p class="text-xs text-[#EFEFC9]/80 mt-2 max-w-2xl">${artist.bio || 'Sin biografía disponible.'}</p>
-${artist.profileUrl ? <a href="${artist.profileUrl}" target="_blank" class="inline-flex items-center gap-1 text-xs text-amber-200 underline mt-2"> <i class="fa-solid fa-link"></i> Visitar Red Principal </a> : ''}
-</div>
-<div class="flex flex-col gap-2">
-<button onclick="promptAddComic('${artist.id}')" class="bg-[#5A5E27] text-[#EFEFC9] px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#5A5E27]/80 transition">
-+ Nuevo Cómic
-</button>
-<button onclick="promptAddArtistVideo('${artist.id}')" class="bg-black/40 text-amber-100 border border-brand-wine px-4 py-2 rounded-xl text-xs font-bold hover:bg-black/60 transition">
-+ Agregar Video
-</button>
-<button onclick="promptAddArtistFanart('${artist.id}')" class="bg-brand-wine text-amber-200 px-4 py-2 rounded-xl text-xs font-bold hover:bg-brand-border transition">
-+ Agregar Fanart
-</button>
-</div>
-    </div>
-<div class="space-y-3">
-<h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-book-open mr-2"></i>Cómics de {artist.name}</h3>
-${(!artist.comics || artist.comics.length === 0) ? `
-<p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-6 rounded-xl border border-brand-wine/30 text-center">No ha publicado cómics aún.</p>
-` : `
-<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-${artist.comics.map(comic => `
-<div onclick="navigateTo('comic', '${artist.id}', '${comic.id}')" class="bg-brand-card border border-brand-wine/40 rounded-xl overflow-hidden hover:border-amber-200/50 transition cursor-pointer flex flex-col">
-<img src="${comic.cover}" alt="${comic.title}" class="h-44 w-full object-cover">
-<div class="p-3 flex-grow flex flex-col justify-between">
-<div>
-<h4 class="font-bold text-sm text-amber-100">${comic.title}</h4>
-<p class="text-xs text-[#EFEFC9]/70 mt-1 line-clamp-2">{comic.description}</p>
-</div>
-<div class="mt-3 text-[10px] text-amber-200/80 flex justify-between items-center border-t border-brand-wine/30 pt-2">
-<span>Modo: ${comic.displayMode || 'Por Capítulos'}</span>
-<i class="fa-solid fa-chevron-right"></i>
-</div>
-</div>
-</div>
-).join('')} </div> }
-</div>
-<!-- VIDEOS ARRIBA DE FANARTS -->
-<div class="space-y-3 pt-4 border-t border-brand-wine/30">
-<div class="flex justify-between items-center">
-<h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-video mr-2"></i>Videos y Animatics General</h3>
-<button onclick="promptAddArtistVideo('${artist.id}')" class="text-xs bg-brand-wine text-amber-200 px-3 py-1.5 rounded-lg border border-brand-border">+ Añadir Video</button>
-</div>
-{(!artist.animations || artist.animations.length === 0) ? `
-<p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-4 rounded-xl border border-brand-wine/30 text-center">No hay videos ni animatics agregados a este perfil.</p>
-` : `
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-${artist.animations.map((vid, vidIdx) => `
-<div class="bg-brand-card border border-brand-wine/40 p-3 rounded-xl space-y-2 relative">
-<div class="flex justify-between items-center">
-<h4 class="font-bold text-xs text-amber-100 truncate pr-2">{vid.title}</h4>
-<button onclick="deleteArtistVideo('${artist.id}', ${vidIdx})" class="text-red-400 hover:text-red-300 text-xs p-1">
-<i class="fa-solid fa-trash"></i>
-</button>
-</div>
-<div class="aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
-${getEmbedPlayerHtml(vid.url)}
-</div>
-</div>
-).join('')} </div> }
-</div>
-<!-- FANARTS ORDEN ESTILO INSTAGRAM (RECIENTES ARRIBA + BORRAR) -->
-<div class="space-y-3 pt-4 border-t border-brand-wine/30">
-<div class="flex justify-between items-center">
-<h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-image mr-2"></i>Fanarts y Dibujos Sueltos</h3>
-<button onclick="promptAddArtistFanart('${artist.id}')" class="text-xs bg-brand-wine text-amber-200 px-3 py-1.5 rounded-lg border border-brand-border">+ Añadir Fanart</button>
-</div>
-{(sortedFanarts.length === 0) ? `
-<p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-4 rounded-xl border border-brand-wine/30 text-center">No hay fanarts individuales agregados todavía.</p>
-` : `
-<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-${sortedFanarts.map((fa, index) => {
-const realIndex = artist.fanarts.length - 1 - index;
-return `
-<div class="relative group aspect-square bg-brand-card rounded-xl overflow-hidden border border-brand-wine/40">
-<img src="${fa.url}" onclick="openModal('${fa.url}', '${fa.title || 'Fanart'}')" class="w-full h-full object-cover cursor-pointer">
-<div class="absolute bottom-0 inset-x-0 bg-black/80 p-2 text-[10px] text-amber-100 flex justify-between items-center opacity-0 group-hover:opacity-100 transition">
-<span class="truncate pr-1">{fa.title || 'Fanart'}</span>
-<button onclick="deleteArtistFanart('${artist.id}', ${realIndex})" class="text-red-400 hover:text-red-200 p-1">
-<i class="fa-solid fa-trash"></i>
-</button>
-</div>
-</div>
-; }).join('')} </div> }
-</div>
-</div>
-`;
-}
-// 3. VISTA DE CÓMIC
-function renderComic(container) {
-const artist = artistsData.find(a => a.id === state.selectedArtistId);
-const comic = artist?.comics.find(c => c.id === state.selectedComicId);
-if (!artist || !comic) { navigateTo('home'); return; }
-let currentPagesList = [];
-let season = null;
-let chapter = null;
-if (comic.displayMode === 'continuous') {
-currentPagesList = comic.continuousPages || [];
-} else {
-season = (comic.seasonsData || []).find(s => s.name === comic.activeSeason) || (comic.seasonsData || [])[0];
-chapter = season?.chapters.find(ch => ch.name === comic.activeChapter) || season?.chapters[0];
-currentPagesList = chapter ? (chapter.pages || []) : [];
-}
-const totalPages = currentPagesList.length;
-const currentPageObj = currentPagesList[state.comicCurrentPage - 1];
-container.innerHTML = `
-<div class="space-y-5">
-<button onclick="navigateTo('artist', '${artist.id}')" class="text-xs font-semibold text-amber-200 hover:underline flex items-center gap-1">
-<i class="fa-solid fa-arrow-left"></i> Volver a ${artist.name}
-</button>
-<div class="bg-brand-card border border-brand-wine/50 p-4 sm:p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-<div>
-<h2 class="text-xl font-bold text-amber-100">{comic.title}</h2>
-<p class="text-xs text-[#EFEFC9]/70 mt-0.5">{comic.description}</p>
-</div>
-<div class="flex items-center gap-2 bg-black/40 p-2 rounded-xl border border-brand-wine/40 text-xs">
-<span class="text-amber-200 font-bold"><i class="fa-solid fa-sliders"></i> ¿Cómo vas a organizar este cómic?:</span>
-<select onchange="updateComicDisplayMode('${artist.id}', '${comic.id}', this.value)" class="bg-brand-card text-[#EFEFC9] border border-brand-wine rounded-lg p-1 text-xs">
-<option value="seasons_chapters" ${comic.displayMode === 'seasons_chapters' ? 'selected' : ''}>Temporadas y Capítulos</option>
-<option value="chapters_only" ${comic.displayMode === 'chapters_only' ? 'selected' : ''}>Solo Capítulos</option>
-<option value="continuous" ${comic.displayMode === 'continuous' ? 'selected' : ''}>Cómic Continuo (Sin divisiones)</option>
-</select>
-</div>
-</div>
-<div class="flex overflow-x-auto gap-2 border-b border-brand-wine/40 pb-2 text-xs font-bold custom-scroll">
-<button onclick="setComicTab('pages')" class="px-4 py-2 rounded-xl transition ${state.comicTab === 'pages' ? 'bg-[#5A5E27] text-white' : 'bg-brand-card text-[#EFEFC9]/70 hover:text-white'}">
-<i class="fa-solid fa-book-open mr-1"></i> Páginas
-</button>
-<button onclick="setComicTab('lore')" class="px-4 py-2 rounded-xl transition ${state.comicTab === 'lore' ? 'bg-[#5A5E27] text-white' : 'bg-brand-card text-[#EFEFC9]/70 hover:text-white'}">
-<i class="fa-solid fa-lightbulb mr-1"></i> Curiosidades & Lore
-</button>
-<button onclick="setComicTab('fanfics')" class="px-4 py-2 rounded-xl transition ${state.comicTab === 'fanfics' ? 'bg-[#5A5E27] text-white' : 'bg-brand-card text-[#EFEFC9]/70 hover:text-white'}">
-<i class="fa-solid fa-pen-nib mr-1"></i> Fanfics (Links)
-</button>
-<button onclick="setComicTab('sketches')" class="px-4 py-2 rounded-xl transition ${state.comicTab === 'sketches' ? 'bg-[#5A5E27] text-white' : 'bg-brand-card text-[#EFEFC9]/70 hover:text-white'}">
-<i class="fa-solid fa-palette mr-1"></i> Bocetos & Q&A
-</button>
-<button onclick="setComicTab('videos')" class="px-4 py-2 rounded-xl transition ${state.comicTab === 'videos' ? 'bg-[#5A5E27] text-white' : 'bg-brand-card text-[#EFEFC9]/70 hover:text-white'}">
-<i class="fa-solid fa-video mr-1"></i> Videos
-</button>
-</div>
-${state.comicTab === 'pages' ? <div class="space-y-4"> <div class="bg-brand-card p-4 rounded-xl border border-brand-wine/40 space-y-3"> ${comic.displayMode === 'seasons_chapters' ?
-<div class="flex flex-wrap items-center gap-2">
-<span class="text-xs font-bold text-amber-200"><i class="fa-solid fa-folder-open"></i> Temporadas:</span>
-${(comic.seasonsData || []).map(s => <button onclick="selectSeason('${artist.id}', '${comic.id}', '${s.name}')" class="px-3 py-1 rounded-lg text-xs font-semibold ${comic.activeSeason === s.name ? 'bg-brand-wine text-white border border-brand-border' : 'bg-black/40 text-[#EFEFC9]/70'}"> ${s.name} </button>).join('')}
-<button onclick="promptAddSeason('${artist.id}', '${comic.id}')" class="text-xs bg-[#5A5E27]/40 text-[#EFEFC9] px-2.5 py-1 rounded-lg border border-[#5A5E27]/50">+ Nueva Temporada</button>
-</div>
-` : ''}
-${(comic.displayMode === 'seasons_chapters' || comic.displayMode === 'chapters_only') ? <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-brand-wine/20"> <div class="flex flex-wrap items-center gap-2"> <span class="text-xs font-bold text-amber-200"><i class="fa-solid fa-bookmark"></i> Capítulos:</span> ${(season?.chapters || []).map(ch =>
-<button onclick="selectChapter('${artist.id}', '${comic.id}', '${ch.name}')" class="px-3 py-1 rounded-lg text-xs font-semibold ${comic.activeChapter === ch.name ? 'bg-[#5A5E27] text-white' : 'bg-black/40 text-[#EFEFC9]/70'}">
-${ch.name}
-</button>
-).join('')} <button onclick="promptAddChapter('${artist.id}', '${comic.id}')" class="text-xs bg-brand-wine/50 text-[#EFEFC9] px-2.5 py-1 rounded-lg border border-brand-border">+ Nuevo Capítulo</button> </div> <button onclick="promptAddPage('${artist.id}', '${comic.id}')" class="bg-[#5A5E27] text-[#EFEFC9] px-3.5 py-1.5 rounded-xl text-xs font-bold">+ Añadir Página</button> </div>  : <div class="flex justify-between items-center"> <span class="text-xs font-bold text-amber-200">Vista de Modo Continuo (Todas las páginas juntas)</span> <button onclick="promptAddPage('${artist.id}', '${comic.id}')" class="bg-[#5A5E27] text-[#EFEFC9] px-3.5 py-1.5 rounded-xl text-xs font-bold">+ Añadir Página</button> </div>}
-</div>
-<div class="flex justify-end gap-2 text-xs">
-<button onclick="setComicViewMode('reader')" class="px-3 py-1.5 rounded-lg border border-brand-wine ${state.comicViewMode === 'reader' ? 'bg-brand-wine text-white' : 'bg-brand-card text-[#EFEFC9]/70'}">
-<i class="fa-solid fa-book-reader mr-1"></i> Lector
-</button>
-<button onclick="setComicViewMode('gallery')" class="px-3 py-1.5 rounded-lg border border-brand-wine ${state.comicViewMode === 'gallery' ? 'bg-brand-wine text-white' : 'bg-brand-card text-[#EFEFC9]/70'}">
-<i class="fa-solid fa-grip mr-1"></i> Galería de Mosaico
-</button>
-</div>
-${totalPages === 0 ? <div class="text-center py-12 bg-brand-card border border-brand-wine/30 rounded-2xl"> <p class="text-xs text-[#EFEFC9]/60">No hay páginas en esta sección.</p> <button onclick="promptAddPage('${artist.id}', '${comic.id}')" class="mt-3 bg-[#5A5E27] text-[#EFEFC9] px-4 py-2 rounded-xl text-xs font-bold">+ Añadir Página</button> </div> : state.comicViewMode === 'gallery' ? <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"> ${currentPagesList.map((pg, index) =>
-<div class="relative group aspect-[3/4] rounded-xl overflow-hidden bg-brand-card border border-brand-wine/40">
-<img src="${pg.url}" alt="Página ${index + 1}" class="w-full h-full object-cover">
-<div onclick="navigateTo('comic', '${artist.id}', '${comic.id}', 'pages', ${index + 1}); setComicViewMode('reader');" class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex flex-col justify-end p-2 cursor-pointer">
-<span class="text-xs font-bold text-amber-200">Página ${index + 1}</span>
-<span class="text-[10px] text-white/80">Abrir en lector</span>
-</div>
-<button onclick="deletePage('${artist.id}', '${comic.id}', ${index})" class="absolute top-2 right-2 bg-black/80 text-red-400 p-1 rounded hover:bg-red-600 hover:text-white text-xs z-10">
-<i class="fa-solid fa-trash"></i>
-</button>
-</div>
-).join('')} </div>  : <div class="bg-brand-card border border-brand-wine/40 p-4 rounded-2xl flex flex-col items-center space-y-4"> <div class="flex items-center gap-4 text-xs font-bold"> <button onclick="changePage(-1)" ${state.comicCurrentPage <= 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="bg-brand-wine px-3 py-1.5 rounded-lg text-white"'}> <i class="fa-solid fa-chevron-left mr-1"></i> Anterior </button> <span class="text-amber-200">Página ${state.comicCurrentPage} de ${totalPages}</span> <button onclick="changePage(1)" ${state.comicCurrentPage >= totalPages ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="bg-brand-wine px-3 py-1.5 rounded-lg text-white"'}> Siguiente <i class="fa-solid fa-chevron-right ml-1"></i> </button> </div> ${currentPageObj ?
-<img src="${currentPageObj.url}" onclick="openModal('${currentPageObj.url}', 'Página ${state.comicCurrentPage}')" class="max-w-full max-h-[75vh] object-contain rounded-lg border border-brand-wine/40 cursor-pointer shadow-xl">
-: ''} </div>}
-</div>
-` : ''}
-{state.comicTab === 'lore' ? `
-<div class="space-y-4">
-<div class="flex justify-between items-center">
-<h3 class="text-sm font-bold text-amber-200">Curiosidades & Historias de Lore</h3>
-<button onclick="promptAddLore('${artist.id}', '${comic.id}')" class="bg-[#5A5E27] text-[#EFEFC9] px-3 py-1.5 rounded-xl text-xs font-bold">+ Agregar Lore</button>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-${(comic.loreNotes || []).map(lore => `
-<div class="bg-brand-card border border-brand-wine/40 p-4 rounded-xl space-y-2">
-<h4 class="font-bold text-sm text-amber-100">{lore.title}</h4>
-<p class="text-xs text-[#EFEFC9]/80">${lore.text}</p>
-${lore.imageUrl ? <img src="${lore.imageUrl}" onclick="openModal('${lore.imageUrl}', '${lore.title}')" class="w-full h-44 object-cover rounded-lg cursor-pointer border border-brand-wine/30"> : ''}
-</div>
-).join('')} </div> </div>  : ''}
-{state.comicTab === 'fanfics' ? `
-<div class="space-y-4">
-<div class="flex justify-between items-center">
-<h3 class="text-sm font-bold text-amber-200">Fanfics y Enlaces de Lectura</h3>
-<button onclick="promptAddFanfic('${artist.id}', '${comic.id}')" class="bg-[#5A5E27] text-[#EFEFC9] px-3 py-1.5 rounded-xl text-xs font-bold">+ Enlazar Fanfic</button>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-${(comic.fanfics || []).map(fic => `
-<div class="bg-brand-card border border-brand-wine/40 p-4 rounded-xl flex justify-between items-center">
-<div>
-<h4 class="font-bold text-sm text-amber-100">{fic.title}</h4>
-<p class="text-xs text-[#EFEFC9]/60">Por ${fic.author || 'Anónimo'}</p>
-</div>
-<a href="${fic.link}" target="_blank" class="bg-brand-wine text-amber-200 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
-<span>Leer Fanfic</span> <i class="fa-solid fa-external-link text-[10px]"></i>
-</a>
-</div>
-).join('')} </div> </div>  : ''}
-${state.comicTab === 'sketches' ? <div class="space-y-4"> <div class="flex justify-between items-center"> <h3 class="text-sm font-bold text-amber-200">Galería de Bocetos y Respuestas</h3> <button onclick="promptAddSketch('${artist.id}', '${comic.id}')" class="bg-[#5A5E27] text-[#EFEFC9] px-3 py-1.5 rounded-xl text-xs font-bold">+ Agregar Boceto</button> </div> <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"> ${(comic.sketches || []).map(sk =>
-<img src="${sk.url}" onclick="openModal('${sk.url}', '${sk.caption || ''}')" class="w-full h-36 object-cover rounded-xl border border-brand-wine/40 cursor-pointer">
-).join('')} </div> </div>  : ''}
-{state.comicTab === 'videos' ? `
-<div class="space-y-4">
-<div class="flex justify-between items-center">
-<h3 class="text-sm font-bold text-amber-200">Videos, Animatics y Reels</h3>
-<button onclick="promptAddVideo('${artist.id}', '${comic.id}')" class="bg-[#5A5E27] text-[#EFEFC9] px-3 py-1.5 rounded-xl text-xs font-bold">+ Agregar Video</button>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-${(comic.videos || []).map(vid => `
-<div class="bg-brand-card border border-brand-wine/40 p-3 rounded-xl space-y-2">
-<h4 class="font-bold text-xs text-amber-100">{vid.title}</h4>
-<div class="aspect-video bg-black rounded-lg overflow-hidden flex items-center justify-center">
-${getEmbedPlayerHtml(vid.url)}
-</div>
-</div>
-).join('')} </div> </div>  : ''}
-</div>
-`;
-}
-// --- SISTEMA DE REPRODUCCIÓN AUTOMÁTICO DE REDES SOCIALES ---
-function getEmbedPlayerHtml(url) {
-if (!url) return '<p class="text-xs text-red-400">Sin URL</p>';
-if (url.includes('youtube.com') || url.includes('youtu.be')) {
-let id = url.includes('shorts/') ? url.split('shorts/')[1].split('?')[0] : (url.includes('v=') ? url.split('v=')[1].split('&')[0] : url.split('youtu.be/')[1]);
-return <iframe src="https://www.youtube.com/embed/${id}" class="w-full h-full" frameborder="0" allowfullscreen></iframe>;
-}
-if (url.includes('instagram.com') || url.includes('tiktok.com')) {
-return <iframe src="${url.endsWith('/') ? url : url + '/'}embed" class="w-full h-full" frameborder="0" allowfullscreen></iframe>;
-}
-return <video src="${url}" controls class="w-full h-full object-contain"></video>;
-}
-// --- FUNCIONES AUXILIARES ---
-function setComicTab(tab) { state.comicTab = tab; render(); }
-function setComicViewMode(mode) { state.comicViewMode = mode; render(); }
-function changePage(delta) {
-state.comicCurrentPage = Math.max(1, state.comicCurrentPage + delta);
-render();
-    }
-function updateComicDisplayMode(artistId, comicId, mode) {
-const artist = artistsData.find(a => a.id === artistId);
-const comic = artist?.comics.find(c => c.id === comicId);
-if (comic) {
-comic.displayMode = mode;
-saveData();
-render();
-}
-}
-function selectSeason(artistId, comicId, sName) {
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-comic.activeSeason = sName;
-const season = (comic.seasonsData || []).find(s => s.name === sName);
-if (season && season.chapters && season.chapters.length > 0) {
-comic.activeChapter = season.chapters[0].name;
-}
-state.comicCurrentPage = 1;
-saveData();
-render();
-}
-}
-function selectChapter(artistId, comicId, chName) {
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-comic.activeChapter = chName;
-state.comicCurrentPage = 1;
-saveData();
-render();
-}
-}
-function promptAddArtist() {
-openFormModal('Añadir Nuevo Artista', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">Nombre del Artista:</label> <input type="text" id="art-name" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="Ej: MiraculousFan"> </div> <div> <label class="block mb-1 text-amber-200">Usuario / Red:</label> <input type="text" id="art-user" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="@usuario"> </div> <div> <label class="block mb-1 text-amber-200">URL de Imagen de Perfil:</label> <input type="text" id="art-avatar" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://..."> </div> <div> <label class="block mb-1 text-amber-200">Biografía:</label> <textarea id="art-bio" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" rows="2"></textarea> </div> <button type="button" onclick="saveNewArtist()" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold hover:bg-[#5A5E27]/80">Guardar Artista</button> </div>);
-}
-function saveNewArtist() {
-const nameEl = document.getElementById('art-name');
-if (!nameEl || !nameEl.value.trim()) return;
-artistsData.push({
-id: 'art-' + Date.now(),
-name: nameEl.value.trim(),
-username: document.getElementById('art-user')?.value || '@artista',
-avatar: document.getElementById('art-avatar')?.value || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
-bio: document.getElementById('art-bio')?.value || '',
-comics: [], fanarts: [], animations: []
-});
-saveData();
-closeFormModal();
-render();
-}
-function promptAddComic(artistId) {
-openFormModal('Añadir Nuevo Cómic', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">Título del Cómic:</label> <input type="text" id="cmc-title" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="Ej: Cómic Especial"> </div> <div> <label class="block mb-1 text-amber-200">Portada (URL):</label> <input type="text" id="cmc-cover" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://..."> </div> <div> <label class="block mb-1 text-amber-200">Descripción:</label> <textarea id="cmc-desc" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" rows="2"></textarea> </div> <button type="button" onclick="saveNewComic('${artistId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold hover:bg-[#5A5E27]/80">Guardar Cómic</button> </div>);
-}
-function saveNewComic(artistId) {
-const titleEl = document.getElementById('cmc-title');
-if (!titleEl || !titleEl.value.trim()) return;
-const artist = artistsData.find(a => a.id === artistId);
-if (artist) {
-if (!artist.comics) artist.comics = [];
-artist.comics.push({
-id: 'comic-' + Date.now(),
-title: titleEl.value.trim(),
-cover: document.getElementById('cmc-cover')?.value || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80',
-description: document.getElementById('cmc-desc')?.value || '',
-displayMode: 'seasons_chapters',
-activeSeason: 'Temporada 1',
-activeChapter: 'Capítulo 1',
-seasonsData: [{ name: 'Temporada 1', chapters: [{ name: 'Capítulo 1', pages: [] }] }],
-continuousPages: [],
-loreNotes: [], fanfics: [], sketches: [], videos: []
-});
-saveData();
-closeFormModal();
-render();
-}
-}
-function promptAddSeason(artistId, comicId) {
-openFormModal('Nueva Temporada', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">Nombre de la Temporada:</label> <input type="text" id="season-name-input" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="Ej: Temporada 2"> </div> <button type="button" onclick="saveNewSeason('${artistId}', '${comicId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Crear Temporada</button> </div>);
-}
-function saveNewSeason(artistId, comicId) {
-const name = document.getElementById('season-name-input')?.value.trim();
-if (!name) return;
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-if (!comic.seasonsData) comic.seasonsData = [];
-comic.seasonsData.push({ name, chapters: [{ name: 'Capítulo 1', pages: [] }] });
-comic.activeSeason = name;
-comic.activeChapter = 'Capítulo 1';
-saveData();
-closeFormModal();
-render();
-}
-}
-function promptAddChapter(artistId, comicId) {
-openFormModal('Nuevo Capítulo', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">Nombre del Capítulo:</label> <input type="text" id="chap-name-input" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="Ej: Capítulo 2"> </div> <button type="button" onclick="saveNewChapter('${artistId}', '${comicId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Crear Capítulo</button> </div>);
-}
-function saveNewChapter(artistId, comicId) {
-const name = document.getElementById('chap-name-input')?.value.trim();
-if (!name) return;
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-const season = (comic.seasonsData || []).find(s => s.name === comic.activeSeason) || comic.seasonsData[0];
-if (season) {
-if (!season.chapters) season.chapters = [];
-season.chapters.push({ name, pages: [] });
-comic.activeChapter = name;
-saveData();
-closeFormModal();
-render();
-}
-}
-}
-function promptAddPage(artistId, comicId) {
-openFormModal('Añadir Página al Cómic', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">URL de la Imagen de la Página:</label> <input type="text" id="page-url-input" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://..."> </div> <button type="button" onclick="saveNewPage('${artistId}', '${comicId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Guardar Página</button> </div>);
-}
-function saveNewPage(artistId, comicId) {
-const url = document.getElementById('page-url-input')?.value.trim();
-if (!url) return;
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-if (comic.displayMode === 'continuous') {
-if (!comic.continuousPages) comic.continuousPages = [];
-comic.continuousPages.push({ url });
-} else {
-const season = (comic.seasonsData || []).find(s => s.name === comic.activeSeason) || comic.seasonsData[0];
-const chap = season?.chapters.find(c => c.name === comic.activeChapter) || season?.chapters[0];
-if (chap) {
-if (!chap.pages) chap.pages = [];
-chap.pages.push({ url });
-}
-}
-saveData();
-closeFormModal();
-render();
-}
-}
-function deletePage(artistId, comicId, index) {
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-if (comic.displayMode === 'continuous') {
-comic.continuousPages.splice(index, 1);
-} else {
-const season = (comic.seasonsData || []).find(s => s.name === comic.activeSeason) || comic.seasonsData[0];
-const chap = season?.chapters.find(c => c.name === comic.activeChapter) || season?.chapters[0];
-if (chap && chap.pages) chap.pages.splice(index, 1);
-}
-saveData();
-render();
-}
-}
-function promptAddLore(artistId, comicId) {
-openFormModal('Agregar Lore o Curiosidad', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">Título / Tema:</label> <input type="text" id="lore-title" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="Ej: Ficha de Personaje / Historia de IG"> </div> <div> <label class="block mb-1 text-amber-200">Explicación o Detalles:</label> <textarea id="lore-text" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" rows="2"></textarea> </div> <div> <label class="block mb-1 text-amber-200">URL de Imagen (Opcional - Historia de IG):</label> <input type="text" id="lore-img" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://..."> </div> <button type="button" onclick="saveNewLore('${artistId}', '${comicId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Guardar Lore</button> </div>);
-}
-function saveNewLore(artistId, comicId) {
-const title = document.getElementById('lore-title')?.value.trim();
-if (!title) return;
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-if (!comic.loreNotes) comic.loreNotes = [];
-comic.loreNotes.push({
-title,
-text: document.getElementById('lore-text')?.value || '',
-imageUrl: document.getElementById('lore-img')?.value || ''
-});
-saveData();
-closeFormModal();
-render();
-}
-}
-function promptAddFanfic(artistId, comicId) {
-openFormModal('Enlazar Fanfic', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">Título del Fanfic:</label> <input type="text" id="fic-title" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white"> </div> <div> <label class="block mb-1 text-amber-200">Enlace (Canva, Wattpad, Google Drive, etc.):</label> <input type="text" id="fic-link" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://canva.com/..."> </div> <div> <label class="block mb-1 text-amber-200">Autor/a:</label> <input type="text" id="fic-author" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="Anónimo"> </div> <button type="button" onclick="saveNewFanfic('${artistId}', '${comicId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Guardar Enlace</button> </div>);
-}
-function saveNewFanfic(artistId, comicId) {
-const title = document.getElementById('fic-title')?.value.trim();
-const link = document.getElementById('fic-link')?.value.trim();
-if (!title || !link) return;
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-if (!comic.fanfics) comic.fanfics = [];
-comic.fanfics.push({
-title,
-link,
-author: document.getElementById('fic-author')?.value || 'Anónimo'
-});
-saveData();
-closeFormModal();
-render();
-}
-}
-function promptAddSketch(artistId, comicId) {
-openFormModal('Agregar Boceto / Q&A', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">URL del Boceto:</label> <input type="text" id="sk-url" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://..."> </div> <div> <label class="block mb-1 text-amber-200">Descripción / Pregunta (Opcional):</label> <input type="text" id="sk-cap" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white"> </div> <button type="button" onclick="saveNewSketch('${artistId}', '${comicId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Guardar Boceto</button> </div>);
-    }
-function saveNewSketch(artistId, comicId) {
-const url = document.getElementById('sk-url')?.value.trim();
-if (!url) return;
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-if (!comic.sketches) comic.sketches = [];
-comic.sketches.push({
-url,
-caption: document.getElementById('sk-cap')?.value || ''
-});
-saveData();
-closeFormModal();
-render();
-}
-}
-function promptAddVideo(artistId, comicId) {
-openFormModal('Agregar Video al Cómic', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">Título del Video / Animatic:</label> <input type="text" id="vid-title" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white"> </div> <div> <label class="block mb-1 text-amber-200">URL (YouTube, TikTok, Instagram Reels):</label> <input type="text" id="vid-url" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://..."> </div> <button type="button" onclick="saveNewVideo('${artistId}', '${comicId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Guardar Video</button> </div>);
-}
-function saveNewVideo(artistId, comicId) {
-const title = document.getElementById('vid-title')?.value.trim();
-const url = document.getElementById('vid-url')?.value.trim();
-if (!title || !url) return;
-const comic = artistsData.find(a => a.id === artistId)?.comics.find(c => c.id === comicId);
-if (comic) {
-if (!comic.videos) comic.videos = [];
-comic.videos.push({ title, url });
-saveData();
-closeFormModal();
-render();
-}
-}
-function promptAddArtistFanart(artistId) {
-openFormModal('Añadir Fanart del Artista', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">URL de la Imagen:</label> <input type="text" id="art-fa-url" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://..."> </div> <div> <label class="block mb-1 text-amber-200">Título / Descripción:</label> <input type="text" id="art-fa-title" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="Fanart"> </div> <button type="button" onclick="saveNewArtistFanart('${artistId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Guardar Fanart</button> </div>);
-}
-function saveNewArtistFanart(artistId) {
-const url = document.getElementById('art-fa-url')?.value.trim();
-if (!url) return;
-const artist = artistsData.find(a => a.id === artistId);
-if (artist) {
-if (!artist.fanarts) artist.fanarts = [];
-artist.fanarts.push({
-url,
-title: document.getElementById('art-fa-title')?.value || 'Fanart'
-});
-saveData();
-closeFormModal();
-render();
-}
-}
-function deleteArtistFanart(artistId, index) {
-const artist = artistsData.find(a => a.id === artistId);
-if (artist && artist.fanarts) {
-artist.fanarts.splice(index, 1);
-saveData();
-render();
-}
-}
-function promptAddArtistVideo(artistId) {
-openFormModal('Añadir Video del Artista', <div class="space-y-3"> <div> <label class="block mb-1 text-amber-200">Título del Video:</label> <input type="text" id="art-vid-title" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white"> </div> <div> <label class="block mb-1 text-amber-200">URL (YouTube, TikTok, Instagram):</label> <input type="text" id="art-vid-url" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" placeholder="https://..."> </div> <button type="button" onclick="saveNewArtistVideo('${artistId}')" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">Guardar Video</button> </div>);
-}
-function saveNewArtistVideo(artistId) {
-const title = document.getElementById('art-vid-title')?.value.trim();
-const url = document.getElementById('art-vid-url')?.value.trim();
-if (!title || !url) return;
-const artist = artistsData.find(a => a.id === artistId);
-if (artist) {
-if (!artist.animations) artist.animations = [];
-artist.animations.push({ title, url });
-saveData();
-closeFormModal();
-render();
-}
-}
-function deleteArtistVideo(artistId, index) {
-const artist = artistsData.find(a => a.id === artistId);
-if (artist && artist.animations) {
-artist.animations.splice(index, 1);
-saveData();
-render();
-}
-}
-function deleteArtist(artistId, e) {
-if (e) e.stopPropagation();
-artistsData = artistsData.filter(a => a.id !== artistId);
-saveData();
-render();
-}
-function openFormModal(title, bodyHtml) {
-document.getElementById('form-modal-title').innerText = title;
-document.getElementById('form-modal-body').innerHTML = bodyHtml;
-document.getElementById('form-modal').classList.remove('hidden');
-}
-function closeFormModal() {
-document.getElementById('form-modal').classList.add('hidden');
-}
-function openModal(imgUrl, title) {
-const modal = document.getElementById('image-modal');
-document.getElementById('modal-image').src = imgUrl;
-document.getElementById('modal-title').innerText = title || '';
-document.getElementById('modal-download-btn').href = imgUrl;
-modal.classList.remove('hidden');
-setTimeout(() => modal.classList.remove('opacity-0'), 10);
-}
-function closeModal() {
-const modal = document.getElementById('image-modal');
-modal.classList.add('opacity-0');
-setTimeout(() => modal.classList.add('hidden'), 300);
-}
-// AUTO-DESBLOQUEO
-if (sessionStorage.getItem('archive_unlocked') === 'true') {
-document.getElementById('pin-screen').classList.add('hidden');
-document.getElementById('app-wrapper').classList.remove('hidden');
-document.getElementById('app-wrapper').classList.add('flex');
-render();
-}
+const defaultArtists = [{
+  id:'art-demo-1', name:'Artista Ejemplo', username:'@miraculous_fanart',
+  avatar:'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
+  profileUrl:'https://instagram.com', bio:'Creador de fancomics y AU de Miraculous Ladybug.',
+  comics:[{ id:'comic-1', title:'El Secreto de París',
+    cover:'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80',
+    description:'Un fancomic alternativo sobre Ladybug y Chat Noir.', displayMode:'seasons_chapters',
+    activeSeason:'Temporada 1', activeChapter:'Capítulo 1',
+    seasonsData:[{name:'Temporada 1',chapters:[{name:'Capítulo 1',pages:[{url:'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80'}]}]}],
+    continuousPages:[], loreNotes:[{title:'Concepción del AU',text:'Esta historia transcurre 3 años después de la temporada 5.',imageUrl:''}],
+    fanfics:[{title:'El diario de Marinette',author:'Artista Ejemplo',link:'https://canva.com',description:'Historia completa en Canva.'}], sketches:[], videos:[]
+  }], fanarts:[], animations:[]
+}];
+function loadArtists() {
+  try { const saved = JSON.parse(localStorage.getItem('miraculous_artists_db')); return Array.isArray(saved) ? saved : defaultArtists; }
+  catch (_) { return defaultArtists; }
+}
+let artistsData = loadArtists();
+let state = {view:'home',selectedArtistId:null,selectedComicId:null,comicTab:'pages',comicViewMode:'gallery',comicCurrentPage:1};
+const $ = id => document.getElementById(id);
+const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function saveData(){ localStorage.setItem('miraculous_artists_db',JSON.stringify(artistsData)); }
+function getArtist(id){ return artistsData.find(a=>a.id===id); }
+function getComic(artistId,comicId){ return getArtist(artistId)?.comics?.find(c=>c.id===comicId); }
+function navigateTo(view,artistId=null,comicId=null,comicTab='pages',pageNum=1){
+  state={...state,view,selectedArtistId:artistId,selectedComicId:comicId,comicTab,comicCurrentPage:pageNum}; render();
+}
+function render(){ const c=$('app-content'); if(!c)return; if(state.view==='artist')renderArtist(c); else if(state.view==='comic')renderComic(c); else renderHome(c); }
+function renderHome(container){
+  container.innerHTML=`<div class="space-y-6"><div class="flex items-center justify-between"><h2 class="text-xl font-bold text-amber-200">Artistas Registrados (${artistsData.length})</h2></div>
+  ${artistsData.length===0?`<div class="text-center py-12 bg-brand-card border border-brand-wine/30 rounded-2xl"><p class="text-[#EFEFC9]/60">No hay artistas registrados aún.</p><button onclick="promptAddArtist()" class="mt-4 bg-[#5A5E27] text-white px-4 py-2 rounded-xl text-xs font-bold">+ Crear Primer Artista</button></div>`:
+  `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">${artistsData.map(a=>`<div onclick="navigateTo('artist','${esc(a.id)}')" class="bg-brand-card border border-brand-wine/40 hover:border-brand-border p-4 rounded-2xl transition cursor-pointer flex flex-col justify-between group"><div class="flex items-center gap-3"><img src="${esc(a.avatar)}" alt="${esc(a.name)}" class="w-14 h-14 rounded-full object-cover border-2 border-brand-wine group-hover:border-amber-200 transition"><div class="overflow-hidden"><h3 class="font-bold text-base text-amber-100 truncate">${esc(a.name)}</h3><p class="text-xs text-[#5A5E27] font-semibold">${esc(a.username)}</p></div></div><p class="text-xs text-[#EFEFC9]/70 mt-3 line-clamp-2">${esc(a.bio||'Sin biografía.')}</p><div class="mt-4 pt-3 border-t border-brand-wine/30 flex justify-between items-center text-xs text-amber-200/80"><span><i class="fa-solid fa-book-open mr-1"></i> ${(a.comics||[]).length} Cómics</span><span><i class="fa-solid fa-image mr-1"></i> ${(a.fanarts||[]).length} Fanarts</span><button onclick="deleteArtist('${esc(a.id)}',event)" class="text-red-400 hover:text-red-300 p-1"><i class="fa-solid fa-trash"></i></button></div></div>`).join('')}</div>`}</div>`;
+}
+function renderArtist(container){
+ const a=getArtist(state.selectedArtistId); if(!a){navigateTo('home');return;}
+ const fanarts=[...(a.fanarts||[])].map((f,i)=>({...f,_i:i})).reverse();
+ container.innerHTML=`<div class="space-y-6"><button onclick="navigateTo('home')" class="text-xs font-semibold text-amber-200 hover:underline flex items-center gap-1"><i class="fa-solid fa-arrow-left"></i> Volver a la lista</button>
+ <div class="bg-brand-card border border-brand-wine/50 p-6 rounded-2xl flex flex-col sm:flex-row items-center sm:items-start gap-5 relative"><img src="${esc(a.avatar)}" alt="${esc(a.name)}" class="w-24 h-24 rounded-full object-cover border-4 border-brand-wine"><div class="flex-grow text-center sm:text-left"><h2 class="text-2xl font-bold text-amber-100">${esc(a.name)}</h2><p class="text-sm font-semibold text-[#5A5E27]">${esc(a.username)}</p><p class="text-xs text-[#EFEFC9]/80 mt-2 max-w-2xl">${esc(a.bio||'Sin biografía disponible.')}</p>${a.profileUrl?`<a href="${esc(a.profileUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs text-amber-200 underline mt-2"><i class="fa-solid fa-link"></i> Visitar Red Principal</a>`:''}</div><div class="flex flex-col gap-2"><button onclick="promptAddComic('${esc(a.id)}')" class="bg-[#5A5E27] text-[#EFEFC9] px-4 py-2 rounded-xl text-xs font-bold">+ Nuevo Cómic</button><button onclick="promptAddArtistVideo('${esc(a.id)}')" class="bg-black/40 text-amber-100 border border-brand-wine px-4 py-2 rounded-xl text-xs font-bold">+ Agregar Video</button><button onclick="promptAddArtistFanart('${esc(a.id)}')" class="bg-brand-wine text-amber-200 px-4 py-2 rounded-xl text-xs font-bold">+ Agregar Fanart</button></div></div>
+ <div class="space-y-3"><h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-book-open mr-2"></i>Cómics de ${esc(a.name)}</h3>${(a.comics||[]).length?`<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">${a.comics.map(c=>`<div onclick="navigateTo('comic','${esc(a.id)}','${esc(c.id)}')" class="bg-brand-card border border-brand-wine/40 rounded-xl overflow-hidden hover:border-amber-200/50 transition cursor-pointer flex flex-col"><img src="${esc(c.cover)}" alt="${esc(c.title)}" class="h-44 w-full object-cover"><div class="p-3 flex-grow"><h4 class="font-bold text-sm text-amber-100">${esc(c.title)}</h4><p class="text-xs text-[#EFEFC9]/70 mt-1">${esc(c.description||'')}</p><div class="mt-3 text-[10px] text-amber-200/80 border-t border-brand-wine/30 pt-2">Modo: ${esc(c.displayMode||'Por Capítulos')}</div></div></div>`).join('')}</div>`:`<p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-6 rounded-xl border border-brand-wine/30 text-center">No ha publicado cómics aún.</p>`}</div>
+ <div class="space-y-3 pt-4 border-t border-brand-wine/30"><div class="flex justify-between items-center"><h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-video mr-2"></i>Videos y Animatics General</h3><button onclick="promptAddArtistVideo('${esc(a.id)}')" class="text-xs bg-brand-wine text-amber-200 px-3 py-1.5 rounded-lg">+ Añadir Video</button></div>${(a.animations||[]).length?`<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">${a.animations.map((v,i)=>`<div class="bg-brand-card border border-brand-wine/40 p-3 rounded-xl space-y-2"><div class="flex justify-between"><h4 class="font-bold text-xs text-amber-100">${esc(v.title)}</h4><button onclick="deleteArtistVideo('${esc(a.id)}',${i})" class="text-red-400"><i class="fa-solid fa-trash"></i></button></div><div class="aspect-video bg-black rounded-lg overflow-hidden">${getEmbedPlayerHtml(v.url)}</div></div>`).join('')}</div>`:`<p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-4 rounded-xl text-center">No hay videos ni animatics agregados a este perfil.</p>`}</div>
+ <div class="space-y-3 pt-4 border-t border-brand-wine/30"><div class="flex justify-between items-center"><h3 class="text-lg font-bold text-amber-200"><i class="fa-solid fa-image mr-2"></i>Fanarts y Dibujos Sueltos</h3><button onclick="promptAddArtistFanart('${esc(a.id)}')" class="text-xs bg-brand-wine text-amber-200 px-3 py-1.5 rounded-lg">+ Añadir Fanart</button></div>${fanarts.length?`<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">${fanarts.map(f=>`<div class="relative group aspect-square bg-brand-card rounded-xl overflow-hidden border border-brand-wine/40"><img src="${esc(f.url)}" onclick="openModal('${esc(f.url)}','${esc(f.title||'Fanart')}')" class="w-full h-full object-cover cursor-pointer"><div class="absolute bottom-0 inset-x-0 bg-black/80 p-2 text-[10px] text-amber-100 flex justify-between"><span>${esc(f.title||'Fanart')}</span><button onclick="deleteArtistFanart('${esc(a.id)}',${f._i})" class="text-red-400"><i class="fa-solid fa-trash"></i></button></div></div>`).join('')}</div>`:`<p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-4 rounded-xl text-center">No hay fanarts individuales agregados todavía.</p>`}</div></div>`;
+}
+function renderComic(container){
+ const a=getArtist(state.selectedArtistId), c=getComic(state.selectedArtistId,state.selectedComicId); if(!a||!c){navigateTo('home');return;}
+ let season=(c.seasonsData||[]).find(s=>s.name===c.activeSeason)||(c.seasonsData||[])[0];
+ let chapter=season?.chapters?.find(x=>x.name===c.activeChapter)||season?.chapters?.[0];
+ const pages=c.displayMode==='continuous'?(c.continuousPages||[]):(chapter?.pages||[]);
+ const tabs=[['pages','Páginas'],['lore','Lore y curiosidades'],['fanfics','Fanfics'],['sketches','Bocetos / Q&A'],['videos','Videos']];
+ let body='';
+ if(state.comicTab==='pages') body=`<div class="space-y-4"><div class="flex flex-wrap gap-2">${c.displayMode!=='continuous'?`<select onchange="selectSeason('${a.id}','${c.id}',this.value)" class="bg-brand-card border border-brand-wine rounded-lg p-2 text-xs">${(c.seasonsData||[]).map(s=>`<option ${s.name===season?.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select><select onchange="selectChapter('${a.id}','${c.id}',this.value)" class="bg-brand-card border border-brand-wine rounded-lg p-2 text-xs">${(season?.chapters||[]).map(ch=>`<option ${ch.name===chapter?.name?'selected':''}>${esc(ch.name)}</option>`).join('')}</select><button onclick="promptAddSeason('${a.id}','${c.id}')" class="bg-brand-wine px-3 py-2 rounded-lg text-xs">+ Temporada</button><button onclick="promptAddChapter('${a.id}','${c.id}')" class="bg-brand-wine px-3 py-2 rounded-lg text-xs">+ Capítulo</button>`:''}<button onclick="promptAddPage('${a.id}','${c.id}')" class="bg-[#5A5E27] px-3 py-2 rounded-lg text-xs font-bold">+ Añadir Página</button></div>${pages.length?`<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">${pages.map((p,i)=>`<div class="relative"><img src="${esc(p.url)}" onclick="openModal('${esc(p.url)}','Página ${i+1}')" class="w-full rounded-xl border border-brand-wine/40 cursor-pointer"><button onclick="deletePage('${a.id}','${c.id}',${i})" class="absolute top-2 right-2 bg-black/80 text-red-400 rounded p-2"><i class="fa-solid fa-trash"></i></button></div>`).join('')}</div>`:`<p class="text-xs text-[#EFEFC9]/60 bg-brand-card p-6 rounded-xl text-center">Todavía no hay páginas en esta sección.</p>`}</div>`;
+ if(state.comicTab==='lore') body=`<div class="space-y-3"><button onclick="promptAddLore('${a.id}','${c.id}')" class="bg-[#5A5E27] px-3 py-2 rounded-lg text-xs">+ Agregar Lore o Curiosidad</button>${(c.loreNotes||[]).map((x,i)=>`<article class="bg-brand-card border border-brand-wine/40 rounded-xl p-4"><h4 class="font-bold text-amber-100">${esc(x.title)}</h4><p class="text-xs mt-2">${esc(x.text)}</p>${x.imageUrl?`<img src="${esc(x.imageUrl)}" class="mt-3 max-h-72 rounded-lg">`:''}<button onclick="removeItem('${a.id}','${c.id}','loreNotes',${i})" class="text-red-400 text-xs mt-2">Eliminar</button></article>`).join('')}</div>`;
+ if(state.comicTab==='fanfics') body=`<div class="space-y-3"><button onclick="promptAddFanfic('${a.id}','${c.id}')" class="bg-[#5A5E27] px-3 py-2 rounded-lg text-xs">+ Enlazar Fanfic</button>${(c.fanfics||[]).map((x,i)=>`<article class="bg-brand-card border border-brand-wine/40 rounded-xl p-4"><h4 class="font-bold text-amber-100">${esc(x.title)}</h4><p class="text-xs mt-1">${esc(x.author||'Anónimo')}</p><a class="text-xs text-amber-200 underline" href="${esc(x.link)}" target="_blank" rel="noopener">Abrir fanfic</a><button onclick="removeItem('${a.id}','${c.id}','fanfics',${i})" class="text-red-400 text-xs ml-3">Eliminar</button></article>`).join('')}</div>`;
+ if(state.comicTab==='sketches') body=`<div class="space-y-3"><button onclick="promptAddSketch('${a.id}','${c.id}')" class="bg-[#5A5E27] px-3 py-2 rounded-lg text-xs">+ Agregar Boceto / Q&A</button><div class="grid grid-cols-2 sm:grid-cols-3 gap-3">${(c.sketches||[]).map((x,i)=>`<div><img src="${esc(x.url)}" onclick="openModal('${esc(x.url)}','${esc(x.caption)}')" class="w-full rounded-xl cursor-pointer"><p class="text-xs mt-1">${esc(x.caption)}</p><button onclick="removeItem('${a.id}','${c.id}','sketches',${i})" class="text-red-400 text-xs">Eliminar</button></div>`).join('')}</div></div>`;
+ if(state.comicTab==='videos') body=`<div class="space-y-3"><button onclick="promptAddVideo('${a.id}','${c.id}')" class="bg-[#5A5E27] px-3 py-2 rounded-lg text-xs">+ Agregar Video</button><div class="grid grid-cols-1 md:grid-cols-2 gap-4">${(c.videos||[]).map((v,i)=>`<div class="bg-brand-card border border-brand-wine/40 p-3 rounded-xl"><h4 class="text-xs font-bold mb-2">${esc(v.title)}</h4><div class="aspect-video bg-black rounded-lg overflow-hidden">${getEmbedPlayerHtml(v.url)}</div><button onclick="removeItem('${a.id}','${c.id}','videos',${i})" class="text-red-400 text-xs mt-2">Eliminar</button></div>`).join('')}</div></div>`;
+ container.innerHTML=`<div class="space-y-5"><button onclick="navigateTo('artist','${a.id}')" class="text-xs font-semibold text-amber-200 hover:underline"><i class="fa-solid fa-arrow-left"></i> Volver a ${esc(a.name)}</button><div class="bg-brand-card border border-brand-wine/50 p-4 sm:p-5 rounded-2xl flex flex-col gap-3"><div><h2 class="text-xl font-bold text-amber-100">${esc(c.title)}</h2><p class="text-xs text-[#EFEFC9]/70 mt-1">${esc(c.description||'')}</p></div><label class="text-xs text-amber-200">Organización del cómic <select onchange="updateComicDisplayMode('${a.id}','${c.id}',this.value)" class="ml-2 bg-brand-card border border-brand-wine rounded-lg p-2 text-xs"><option value="seasons_chapters" ${c.displayMode==='seasons_chapters'?'selected':''}>Temporadas y Capítulos</option><option value="chapters_only" ${c.displayMode==='chapters_only'?'selected':''}>Solo Capítulos</option><option value="continuous" ${c.displayMode==='continuous'?'selected':''}>Cómic Continuo</option></select></label></div><div class="flex overflow-x-auto gap-2 border-b border-brand-wine/40 pb-2">${tabs.map(([id,label])=>`<button onclick="setComicTab('${id}')" class="whitespace-nowrap px-3 py-2 rounded-lg text-xs ${state.comicTab===id?'bg-brand-wine text-amber-100':'bg-brand-card text-[#EFEFC9]/70'}">${label}</button>`).join('')}</div>${body}</div>`;
+}
+function getEmbedPlayerHtml(url){ if(!url)return '<p class="text-xs text-red-400">Sin URL</p>'; const u=String(url); if(/youtube\.com|youtu\.be/.test(u)){let id='';try{const x=new URL(u);id=x.hostname.includes('youtu.be')?x.pathname.slice(1):x.pathname.includes('/shorts/')?x.pathname.split('/shorts/')[1]:x.searchParams.get('v')||'';id=id.split('/')[0];}catch(_){}return id?`<iframe src="https://www.youtube.com/embed/${esc(id)}" class="w-full h-full" frameborder="0" allowfullscreen loading="lazy"></iframe>`:'<p class="text-xs">URL de YouTube no válida</p>'; } if(/instagram\.com|tiktok\.com/.test(u))return `<a href="${esc(u)}" target="_blank" rel="noopener" class="text-amber-200 underline text-xs">Ver publicación</a>`; return `<video src="${esc(u)}" controls class="w-full h-full object-contain"></video>`; }
+function setComicTab(tab){state.comicTab=tab;render();}
+function setComicViewMode(mode){state.comicViewMode=mode;render();}
+function changePage(delta){state.comicCurrentPage=Math.max(1,state.comicCurrentPage+delta);render();}
+function updateComicDisplayMode(aid,cid,mode){const c=getComic(aid,cid);if(c){c.displayMode=mode;saveData();render();}}
+function selectSeason(aid,cid,name){const c=getComic(aid,cid);if(c){c.activeSeason=name;c.activeChapter=c.seasonsData.find(s=>s.name===name)?.chapters?.[0]?.name||'';saveData();render();}}
+function selectChapter(aid,cid,name){const c=getComic(aid,cid);if(c){c.activeChapter=name;saveData();render();}}
+function openFormModal(title,html){$('form-modal-title').textContent=title;$('form-modal-body').innerHTML=html;$('form-modal').classList.remove('hidden');}
+function closeFormModal(){$('form-modal').classList.add('hidden');}
+function field(label,id,placeholder='',type='text'){return `<div><label class="block mb-1 text-amber-200" for="${id}">${label}</label><input type="${type}" id="${id}" placeholder="${placeholder}" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white"></div>`;}
+function area(label,id){return `<div><label class="block mb-1 text-amber-200" for="${id}">${label}</label><textarea id="${id}" class="w-full p-2 bg-black/40 border border-brand-wine rounded-lg text-white" rows="2"></textarea></div>`;}
+function modalForm(title,fields,button,saveCall){openFormModal(title,`<div class="space-y-3">${fields}<button type="button" onclick="${saveCall}" class="w-full py-2 bg-[#5A5E27] text-white rounded-xl font-bold">${button}</button></div>`);}
+function val(id){return $(id)?.value.trim()||'';}
+function promptAddArtist(){modalForm('Añadir Nuevo Artista',field('Nombre del Artista','art-name','Ej: MiraculousFan')+field('Usuario / Red','art-user','@usuario')+field('URL de Imagen de Perfil','art-avatar','https://...')+field('URL del perfil principal','art-profile','https://...')+area('Biografía','art-bio'),'Guardar Artista','saveNewArtist()');}
+function saveNewArtist(){const name=val('art-name');if(!name)return;artistsData.push({id:'art-'+Date.now(),name,username:val('art-user')||'@artista',avatar:val('art-avatar')||'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',profileUrl:val('art-profile'),bio:val('art-bio'),comics:[],fanarts:[],animations:[]});saveData();closeFormModal();render();}
+function promptAddComic(aid){modalForm('Añadir Nuevo Cómic',field('Título del Cómic','cmc-title','Ej: Cómic Especial')+field('Portada (URL)','cmc-cover','https://...')+area('Descripción','cmc-desc'),'Guardar Cómic',`saveNewComic('${aid}')`);}
+function saveNewComic(aid){const title=val('cmc-title'),a=getArtist(aid);if(!title||!a)return;a.comics=a.comics||[];a.comics.push({id:'comic-'+Date.now(),title,cover:val('cmc-cover'),description:val('cmc-desc'),displayMode:'seasons_chapters',activeSeason:'Temporada 1',activeChapter:'Capítulo 1',seasonsData:[{name:'Temporada 1',chapters:[{name:'Capítulo 1',pages:[]}]}],continuousPages:[],loreNotes:[],fanfics:[],sketches:[],videos:[]});saveData();closeFormModal();render();}
+function promptAddSeason(aid,cid){modalForm('Nueva Temporada',field('Nombre de la Temporada','season-name-input','Ej: Temporada 2'),'Crear Temporada',`saveNewSeason('${aid}','${cid}')`);}
+function saveNewSeason(aid,cid){const n=val('season-name-input'),c=getComic(aid,cid);if(!n||!c)return;c.seasonsData=c.seasonsData||[];c.seasonsData.push({name:n,chapters:[{name:'Capítulo 1',pages:[]}]});c.activeSeason=n;c.activeChapter='Capítulo 1';saveData();closeFormModal();render();}
+function promptAddChapter(aid,cid){modalForm('Nuevo Capítulo',field('Nombre del Capítulo','chap-name-input','Ej: Capítulo 2'),'Crear Capítulo',`saveNewChapter('${aid}','${cid}')`);}
+function saveNewChapter(aid,cid){const n=val('chap-name-input'),c=getComic(aid,cid);if(!n||!c)return;let s=c.seasonsData?.find(x=>x.name===c.activeSeason)||c.seasonsData?.[0];if(!s)return;s.chapters=s.chapters||[];s.chapters.push({name:n,pages:[]});c.activeChapter=n;saveData();closeFormModal();render();}
+function promptAddPage(aid,cid){modalForm('Añadir Página al Cómic',field('URL de la Imagen de la Página','page-url-input','https://...'),'Guardar Página',`saveNewPage('${aid}','${cid}')`);}
+function saveNewPage(aid,cid){const url=val('page-url-input'),c=getComic(aid,cid);if(!url||!c)return;if(c.displayMode==='continuous'){c.continuousPages=c.continuousPages||[];c.continuousPages.push({url});}else{let s=c.seasonsData?.find(x=>x.name===c.activeSeason)||c.seasonsData?.[0],ch=s?.chapters?.find(x=>x.name===c.activeChapter)||s?.chapters?.[0];if(!ch)return;ch.pages=ch.pages||[];ch.pages.push({url});}saveData();closeFormModal();render();}
+function deletePage(aid,cid,i){const c=getComic(aid,cid);if(!c)return;if(c.displayMode==='continuous')c.continuousPages.splice(i,1);else{let s=c.seasonsData?.find(x=>x.name===c.activeSeason)||c.seasonsData?.[0],ch=s?.chapters?.find(x=>x.name===c.activeChapter)||s?.chapters?.[0];ch?.pages?.splice(i,1);}saveData();render();}
+function promptAddLore(aid,cid){modalForm('Agregar Lore o Curiosidad',field('Título / Tema','lore-title','Ej: Ficha de Personaje')+area('Explicación o Detalles','lore-text')+field('URL de Imagen (opcional)','lore-img','https://...'),'Guardar Lore',`saveNewLore('${aid}','${cid}')`);}
+function saveNewLore(aid,cid){const title=val('lore-title'),c=getComic(aid,cid);if(!title||!c)return;c.loreNotes=c.loreNotes||[];c.loreNotes.push({title,text:val('lore-text'),imageUrl:val('lore-img')});saveData();closeFormModal();render();}
+function promptAddFanfic(aid,cid){modalForm('Enlazar Fanfic',field('Título del Fanfic','fic-title')+field('Enlace','fic-link','https://...','url')+field('Autor/a','fic-author','Anónimo'),'Guardar Enlace',`saveNewFanfic('${aid}','${cid}')`);}
+function saveNewFanfic(aid,cid){const title=val('fic-title'),link=val('fic-link'),c=getComic(aid,cid);if(!title||!link||!c)return;c.fanfics=c.fanfics||[];c.fanfics.push({title,link,author:val('fic-author')||'Anónimo'});saveData();closeFormModal();render();}
+function promptAddSketch(aid,cid){modalForm('Agregar Boceto / Q&A',field('URL del Boceto','sk-url','https://...')+field('Descripción / Pregunta (opcional)','sk-cap'),'Guardar Boceto',`saveNewSketch('${aid}','${cid}')`);}
+function saveNewSketch(aid,cid){const url=val('sk-url'),c=getComic(aid,cid);if(!url||!c)return;c.sketches=c.sketches||[];c.sketches.push({url,caption:val('sk-cap')});saveData();closeFormModal();render();}
+function promptAddVideo(aid,cid){modalForm('Agregar Video al Cómic',field('Título del Video / Animatic','vid-title')+field('URL (YouTube, TikTok, Instagram o video)','vid-url','https://...','url'),'Guardar Video',`saveNewVideo('${aid}','${cid}')`);}
+function saveNewVideo(aid,cid){const title=val('vid-title'),url=val('vid-url'),c=getComic(aid,cid);if(!title||!url||!c)return;c.videos=c.videos||[];c.videos.push({title,url});saveData();closeFormModal();render();}
+function promptAddArtistFanart(aid){modalForm('Añadir Fanart del Artista',field('URL de la Imagen','art-fa-url','https://...')+field('Título / Descripción','art-fa-title','Fanart'),'Guardar Fanart',`saveNewArtistFanart('${aid}')`);}
+function saveNewArtistFanart(aid){const url=val('art-fa-url'),a=getArtist(aid);if(!url||!a)return;a.fanarts=a.fanarts||[];a.fanarts.push({url,title:val('art-fa-title')||'Fanart'});saveData();closeFormModal();render();}
+function deleteArtistFanart(aid,i){const a=getArtist(aid);a?.fanarts?.splice(i,1);saveData();render();}
+function promptAddArtistVideo(aid){modalForm('Añadir Video del Artista',field('Título del Video','art-vid-title')+field('URL','art-vid-url','https://...','url'),'Guardar Video',`saveNewArtistVideo('${aid}')`);}
+function saveNewArtistVideo(aid){const title=val('art-vid-title'),url=val('art-vid-url'),a=getArtist(aid);if(!title||!url||!a)return;a.animations=a.animations||[];a.animations.push({title,url});saveData();closeFormModal();render();}
+function deleteArtistVideo(aid,i){getArtist(aid)?.animations?.splice(i,1);saveData();render();}
+function deleteArtist(aid,e){e?.stopPropagation();if(!confirm('¿Eliminar este artista y todo su contenido?'))return;artistsData=artistsData.filter(a=>a.id!==aid);saveData();render();}
+function removeItem(aid,cid,key,i){const c=getComic(aid,cid);c?.[key]?.splice(i,1);saveData();render();}
+function openModal(url,title){$('modal-image').src=url;$('modal-title').textContent=title||'';$('modal-download-btn').href=url;const m=$('image-modal');m.classList.remove('hidden');setTimeout(()=>m.classList.remove('opacity-0'),10);}
+function closeModal(){const m=$('image-modal');m.classList.add('opacity-0');setTimeout(()=>m.classList.add('hidden'),300);}
+// AUTO-DESBLOQUEO DE LA SESIÓN ACTUAL
+try {
+  if (sessionStorage.getItem('archive_unlocked') === 'true') {
+    $('pin-screen')?.classList.add('hidden');
+    $('app-wrapper')?.classList.remove('hidden');
+    $('app-wrapper')?.classList.add('flex');
+    render();
+  }
+} catch (error) {
+  // Si el navegador bloquea sessionStorage, se mantiene la pantalla del PIN.
+  console.warn('No se pudo restaurar la sesión:', error);
+}
+
 </script>
 </body>
 </html>
